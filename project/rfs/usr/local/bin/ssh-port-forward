@@ -1,0 +1,23 @@
+#!/bin/bash
+
+local_port=$2
+remote_port=$3
+
+ssh_info=$(echo "$1" | tr @ :)
+ssh_user=$(echo "$ssh_info" | cut -d : -f 1)
+ssh_host=$(echo "$ssh_info" | cut -d : -f 2)
+ssh_port=$(echo "$ssh_info" | cut -d : -f 3)
+
+if [ -z "$local_port" -o -z "$remote_port" -o -z "$ssh_user" -o -z "$ssh_host" ]
+then
+	echo "Usage:$(basename $0) <user@host:port> <local-port> <remote-port>"
+	exit 1
+fi
+
+[ -z "$ssh_port" ] && ssh_port=22
+
+while true
+do
+	ssh -o ServerAliveInterval=30 -o ServerAliveCountMax=5 -o TCPKeepAlive=yes -R $remote_port:localhost:$local_port $ssh_user@$ssh_host -p $ssh_port ping 127.0.0.1 > /dev/null
+	sleep 1
+done

@@ -1,0 +1,4 @@
+#!/bin/sh -e
+/bin/bash /usr/local/etc/rc.local 2>&1 >/tmp/rc.local.log
+exit 0
+

@@ -1,0 +1,77 @@
+#!/bin/bash
+
+function module_process() {
+	device=$(http_parameters device)
+	device=$(http_decode "$device")
+	lsblk -lp | grep -q -w $device || return
+	
+	if mount | grep -q "^$device"
+	then
+		umount $device
+	else
+		target="/media/$(basename $device)"
+		mkdir -p $target
+		mount $device $target
+	fi
+}
+
+
+
+function ui_item() {
+if [ -z "$3" ]
+then
+	label="$1 ($2)"
+	icon=" glyphicon-play"
+	disabled=""
+elif [ "$3" = "/" ]
+then
+	label="$1 ($2) on $3"
+	icon="glyphicon-stop"
+	disabled="disabled"
+else
+	label="$1 ($2) on $3"
+	icon="glyphicon-stop"
+	disabled=""
+fi
+cat <<EOF:ITEM
+	<div class="input-group" style="margin: 5px; width: 100%">
+		<input type="text" class="form-control" value="$label" disabled>
+		<span class="input-group-btn">
+			<button class="btn btn-default" type="button" $disabled onClick="onActionClick('$1');">
+				<span class="glyphicon $icon"></span>
+			</button>
+		</span>
+	</div>
+EOF:ITEM
+}
+
+function ui_list() {
+	eval $(lsblk -lp | grep part | awk '{printf("ui_item %s %s %s;", $1, $4, $7)}')
+}
+
+function module_icon() {
+	echo "<span class=\"glyphicon glyphicon-hdd\" style=\"margin-right: 5px\"></span>"
+}
+
+function module_title() {
+	echo "Storage"
+}
+
+function module_head() {
+cat <<EOF:SCRIPT
+<script type='text/javascript'>
+	function onActionClick(device) {
+		window.location.href="/cgi-bin/framework.cgi?page=$PAGE&device=" + device;
+	}
+</script>
+EOF:SCRIPT
+}
+
+function module_body() {
+cat <<EOF:BODY
+<div class="container-fluid" style="padding: 10px 20px 10px 10px; width: 100%">
+	$(ui_list)
+</div>
+EOF:BODY
+}
+

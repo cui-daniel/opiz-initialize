@@ -1,0 +1,61 @@
+#!/bin/bash
+
+function command_execute() {
+	command=$(http_parameter command)
+	command=$(http_decode "$command")
+	[ -z "$command" ] && return
+	echo "$command" | grep '^!' | cut -c 2- >> /var/log/terminal.cgi.log
+	echo "$command" | sed 's/^!//g' | bash
+}
+
+function list_history() {
+	cat /var/log/terminal.cgi.log | sed 's/^ *//g' | sed 's/ *$//g' | grep -v '^$' | sort -u | while read line
+	do
+		echo "			<li><a href='#' onClick='onHistoryItemClick(this);'>$line</a></li>"
+	done
+}
+
+function module_process() {
+	echo
+}
+
+function module_icon() {
+	echo "<span class=\"glyphicon glyphicon-play\" style=\"margin-right: 5px\"></span>"
+}
+
+function module_title() {
+	echo "Terminal"
+}
+
+function module_head() {
+cat <<EOF:SCRIPT
+	<script type='text/javascript'>
+		function onHistoryItemClick(item) {
+			document.getElementById('command').value=item.innerHTML;
+		}
+	</script>
+EOF:SCRIPT
+}
+
+function module_body() {
+cat <<EOF:BODY
+	<div style="margin: 15px;">
+		<div><pre>$(command_execute 2>&1)</pre></div>
+		<form>
+			<input type='hidden' name='page' value='$PAGE'>
+			<div class="input-group">
+				<input type='text' id='command' name='command' class='form-control'>
+				<div class="input-group-btn dropup">
+					<button type="button" class="btn btn-default dropdown-toggle" data-toggle="dropdown">
+						<span class="caret"></span>
+					</button>
+					<ul class="dropdown-menu pull-right">
+						$(list_history)
+					</ul>
+				</div>
+			</div>
+		</form>
+	</div>
+EOF:BODY
+}
+

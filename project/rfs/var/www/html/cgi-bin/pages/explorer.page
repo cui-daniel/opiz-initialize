@@ -1,0 +1,123 @@
+#!/bin/bash
+
+
+function list_path() {
+	ls -lh --time-style='+%F %T *' "$path" |
+	grep -v '^total' | sed 's/* /*/g' | sed 's/ -> /*/g' |
+	awk '{split($0, array, "*"); printf("show_row \"%s\" \"%s\" \"%s\" \"%s\" \"%s %s\" \"%s\" \"%s\"\n", $1, $3, $4, $5, $6, $7, array[2], array[3])}'
+}
+
+function show_actions() {
+	echo -n "<a href=\"$SCRIPT_NAME?page=$PAGE&path=$path&action=delete&target=$target\" onclick=\"return onDeleteClick()\"><span class=\"glyphicon glyphicon-trash\" style=\"margin-right: 5px\"></span></a>"
+	if [ -f "$target" ]
+	then
+		echo -n "<a href=\"$SCRIPT_NAME?page=editor.page&path=$target\"><span class=\"glyphicon glyphicon-edit\" style=\"margin-right: 5px\"></span></a>"
+	fi
+}
+
+function show_row() {
+	if [ "$path" = "/" ]
+	then
+		target="/$6"
+	else
+		target="$path/$6"
+	fi
+	echo "<tr>"
+	if [ -d "$target" ]
+	then
+		echo "	<td>$1</td><td>$2</td><td>$3</td><td>$4</td><td>$5</td><td><a href=\"$SCRIPT_NAME?page=$PAGE&path=$target\">$6</a></td><td>$(show_actions)</td>"
+	else
+		echo "	<td>$1</td><td>$2</td><td>$3</td><td>$4</td><td>$5</td><td><a href=\"$SCRIPT_NAME?page=$PAGE&path=$path&action=download&target=$target\">$6</a></td><td>$(show_actions)</td>"
+	fi
+	echo "</tr>"
+}
+
+function show_table() {
+	if [ "$path" = "/" ]
+	then
+		echo "<b>$path</b>"
+	else
+		parent=$(dirname "$path")
+		echo "<b>$path</b><a href=\"$SCRIPT_NAME?page=$PAGE&path=$parent\"><span class=\"glyphicon glyphicon-arrow-left\" style=\"margin-left: 5px\"></span></a>"
+	fi
+	echo "<table>"
+	echo "<tr><td><b>Permissions</b></td><td><b>User</b></td><td><b>Group</b></td><td><b>Size</b></td><td><b>Modified</b></td><td><b>Name</b></td><td></td></tr>"
+	eval "$(list_path)"
+	echo "</table>"
+}
+
+function module_process() {
+	error=0
+	path=$(http_parameter path)
+	path=$(http_decode "$path")
+	[ -z "$path" ] && path="/"
+	if [ ! -e "$path" ]
+	then
+		error=1
+	elif [ ! -d "$path" ]
+	then
+		error=2
+	elif [ -x "$path" ]
+	then
+		error=3
+	fi
+}
+
+function module_icon() {
+	echo "<span class=\"glyphicon glyphicon-folder-open\" style=\"margin-right: 5px\"></span>"
+}
+
+function module_title() {
+	echo "Explorer"
+}
+
+function module_head() {
+cat <<EOF:SCRIPT
+	<style type="text/css">  
+		table td{padding:5px;}  
+	</style>
+	<script type="text/javascript">
+		function onDeleteClick() {
+			return confirm("删除是不可恢复的，你确认要删除吗？");
+		}
+
+		function onCreateClick(type) {
+			if (document.getElementById("create-name").value == "") {
+				alert("Name cannot be empty");
+			} else {
+				document.getElementById("create-type").value=type;
+				document.getElementById("create-form").submit();
+			}
+		}
+
+	</script>
+EOF:SCRIPT
+}
+
+function module_body() {
+cat <<EOF:BODY
+	<div style="margin: 15px;">
+		<pre>$(show_table 2>&1)</pre>
+		<form id="create-form">
+			<input type="hidden" name="page" value="$PAGE">
+			<input type="hidden" name="path" value="$path">
+			<input type="hidden" name="action" value="create">
+			<input id="create-type" type="hidden" name="type" value="$PAGE">
+			<div class="input-group">
+				<input type="text" id="create-name" name="name" class="form-control">
+				<div class="input-group-btn dropup">
+					<button type="button" class="btn btn-default dropdown-toggle" data-toggle="dropdown">
+						Create<span class="caret" style="margin-left: 5px"></span>
+					</button>
+					<ul class="dropdown-menu pull-right">
+						<li><a href="#" onClick="onCreateClick('file');"><span class="glyphicon glyphicon-file" style="margin-right: 5px"></span>File</a></li>
+						<li><a href="#" onClick="onCreateClick('folder');"><span class="glyphicon glyphicon-folder-open" style="margin-right: 5px"></span>Folder</a></li>
+					</ul>
+				</div>
+			</div>
+		</form>
+	</div>
+
+EOF:BODY
+}
+

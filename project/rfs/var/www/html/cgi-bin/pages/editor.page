@@ -1,0 +1,44 @@
+#!/bin/bash
+
+function module_process() {
+	path=$(http_parameter path)
+	file "$path" | grep -w text || ERROR="$path not is text file."
+	echo
+}
+
+function module_icon() {
+	echo "<span class=\"glyphicon glyphicon-edit\" style=\"margin-right: 5px\"></span>"
+}
+
+function module_title() {
+	echo "Editor"
+}
+
+function module_action() {
+	[ -z "$ERROR" ] || return
+	echo "<span onclick=\"onSaveClick()\" class=\"glyphicon glyphicon-floppy-disk\" style=\"margin-right: 5px\"></span>"
+}
+
+function module_head() {
+cat <<EOF:SCRIPT
+	<script type='text/javascript'>
+		function onSaveClick() {
+			document.getElementById('editor-form').submit();
+		}
+	</script>
+EOF:SCRIPT
+}
+
+function module_body() {
+path=$(http_parameter path)
+[ -z "$ERROR" ] || return
+rows=$(cat $path | wc -l)
+rows=$(expr $rows + 1)
+cat <<EOF:BODY
+	<div style="margin: 15px; height:100%">
+		<form id="editor-form" action="/cgi-bin/framework.cgi?page=$PAGE&path=$path&action=save" method="post" style="height:100%">
+			<textarea name="content" class="form-control" rows="$rows">$(cat $path)</textarea>
+		</form>
+	</div>
+EOF:BODY
+}

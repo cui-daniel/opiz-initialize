@@ -1,0 +1,14 @@
+#!/bin/bash
+/usr/local/bin/busybox httpd -p 127.0.0.1:81 -h /var/www/html/ -c /etc/busybox/httpd.conf
+
+/usr/sbin/hostapd -B /etc/hostapd.conf -P /run/hostapd.wlan0.pid
+
+/usr/local/bin/ssh-socks-deamon daniel@vps.snail.org.cn:27824 31280 &
+/usr/local/bin/ssh-port-forward daniel@vps.snail.org.cn:27824 80 8080 &
+
+/sbin/ifconfig wlan0 192.168.128.1
+/sbin/iptables -t nat -A POSTROUTING -s 192.168.128.0/24 -o ra0 -j MASQUERADE
+/sbin/iptables -t nat -A POSTROUTING -s 192.168.128.0/24 -o eth0 -j MASQUERADE
+
+/sbin/wpa_supplicant -s -B -P /run/wpa_supplicant.ra0.pid -i ra0 -D nl80211,wext -c /etc/wpa_supplicant.conf -C /run/wpa_supplicant
+/sbin/dhclient -1 -v -pf /run/dhclient.ra0.pid -lf /var/lib/dhcp/dhclient.ra0.leases -I -df /var/lib/dhcp/dhclient6.ra0.leases ra0

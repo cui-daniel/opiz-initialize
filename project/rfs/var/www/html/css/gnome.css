@@ -1,0 +1,40 @@
+html, body {
+	height:100%;  
+	margin: 0px;
+	padding: 0px;
+}
+
+#gnome-screen {
+	width: 100%;
+	margin: 0px;
+}
+
+#gnome-status-bar {
+	background-color: black;
+	color: white;
+	padding: 5px;
+}
+
+#gnome-status-bar-left {
+	background-color: black;
+	color: white;
+	padding: 5px 5px 5px 15px;
+	width: 40%;
+	float:left;
+}
+
+#gnome-status-bar-center {
+	background-color: black;
+	color: white;
+	padding: 5px;
+	width: 20%;
+	float:left;
+}
+
+#gnome-status-bar-right {
+	background-color: black;
+	color: white;
+	padding: 5px 15px 5px 5px;
+	width: 40%;
+	float:left;
+}
