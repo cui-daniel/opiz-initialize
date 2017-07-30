@@ -1,13 +1,28 @@
 #!/bin/bash
 function backup() {
-	[ -e $1 ] || return
-	[ -e $1.backup ] || cp -a $1 $1.backup
+	if [ -e $1 ]
+	then
+		if [ -e $1.backup ]
+		then
+			echo "backup: $1.backup exist"
+		else
+			echo "backup: $1 -> $1.backup"
+			cp -a $1 $1.backup
+		fi
+	else
+		echo "backup: $1 not exist"
+	fi
 }
 
 function release() {
 	mkdir -p $(dirname $1)
+	echo "release: rfs/$1 -> $1"
 	cp -a rfs/$1 $1
-	[ -n "$2" ] && chmod $2 $1
+	if [ -n "$2" ]
+	then
+		echo "release: change mode $1 $2"
+		chmod $2 $1
+	fi
 }
 
 cd $(dirname $1)
