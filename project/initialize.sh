@@ -70,6 +70,9 @@ release /etc/busybox/httpd.conf
 backup /etc/hostapd.conf
 release /etc/hostapd.conf
 #================================================================
+backup /etc/sysctl.conf
+release /etc/sysctl.conf
+#================================================================
 backup /etc/wpa_supplicant.conf
 release /etc/wpa_supplicant.conf
 #================================================================
