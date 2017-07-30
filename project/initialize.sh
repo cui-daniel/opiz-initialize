@@ -19,7 +19,7 @@ function release() {
 	then
 		mkdir -p $(dirname $1)
 		echo "release: rfs$1 -> $1"
-		cp -a rfs/$1 $1
+		cp -dr rfs/$1 $1
 		if [ -n "$2" ]
 		then
 			echo "release: change $1 mode to $2"
@@ -83,7 +83,7 @@ release /usr/local/etc/rc.local 755
 release /usr/local/bin/ssh-socks-deamon 755
 release /usr/local/bin/ssh-port-forward 755
 #================================================================
-cp -a rfs/var/www/html/* /var/www/html/
+cp -dr rfs/var/www/html/* /var/www/html/
 chmod 755 /var/www/html/cgi-bin/*.cgi
 #================================================================
 
