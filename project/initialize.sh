@@ -15,23 +15,29 @@ function backup() {
 }
 
 function release() {
-	mkdir -p $(dirname $1)
-	echo "release: rfs/$1 -> $1"
-	cp -a rfs/$1 $1
-	if [ -n "$2" ]
+	if [ -e rfs/$1 ]
 	then
-		echo "release: change mode $1 $2"
-		chmod $2 $1
+		mkdir -p $(dirname $1)
+		echo "release: rfs$1 -> $1"
+		cp -a rfs/$1 $1
+		if [ -n "$2" ]
+		then
+			echo "release: change $1 mode to $2"
+			chmod $2 $1
+		fi
+	else
+		echo "release: rfs/$1 not exist"
 	fi
 }
 
-cd $(dirname $1)
+cd $(dirname $0)
 
 mkdir -p /storage
-
+#================================================================
+dpkg-reconfigure locales
 #================================================================
 apt-get update
-apt-get upgrade
+apt-get upgrade -y
 #================================================================
 apt-get install -y apt-file
 apt-file update
@@ -73,7 +79,7 @@ release /usr/local/etc/rc.local 755
 release /usr/local/bin/ssh-socks-deamon 755
 release /usr/local/bin/ssh-port-forward 755
 #================================================================
-release /var/www/html
+cp -a rfs/var/www/html/* /var/www/html/
 chmod 755 /var/www/html/cgi-bin/*.cgi
 #================================================================
 
