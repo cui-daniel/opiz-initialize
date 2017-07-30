@@ -54,6 +54,7 @@ apt-get install -y cryptsetup
 apt-get install -y samba
 backup /etc/samba/smb.conf
 release /etc/samba/smb.conf
+smbpasswd -a daniel
 #================================================================
 apt-get install -y nginx
 backup /etc/nginx/sites-available/default
