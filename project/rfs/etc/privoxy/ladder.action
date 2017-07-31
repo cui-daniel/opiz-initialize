@@ -1,0 +1,26 @@
+{+forward-override{forward-socks5 127.0.0.1:31280 .}}
+#google
+.google.com.hk
+.google.com
+.google.ca
+.gstatic.com
+.gmail.com
+.googleusercontent.com
+.googleapis.com
+.ggpht.com
+
+
+#facebook
+.facebook.com
+
+#twitter
+.twitter.com
+.twimg.com
+
+#youtube
+.youtube.com
+
+
+#other
+.fbcdn.net
+

@@ -60,10 +60,23 @@ apt-get install -y nginx
 backup /etc/nginx/sites-available/default
 release /etc/nginx/sites-available/default
 #================================================================
-apt-get install -y dnsmasq
-backup /etc/dnsmasq.conf
-release /etc/dnsmasq.conf
-release /etc/dnsmasq.hosts
+#apt-get install -y dnsmasq
+#backup /etc/dnsmasq.conf
+#release /etc/dnsmasq.conf
+#release /etc/dnsmasq.hosts
+#================================================================
+apt-get install -y pdnsd
+backup /etc/pdnsd.conf
+release /etc/pdnsd.conf
+#================================================================
+apt-get install -y privoxy
+backup /etc/privoxy/config
+release /etc/privoxy/config
+release /etc/privoxy/ladder.action
+#================================================================
+apt-get install -y isc-dhcp-server
+backup /etc/default/isc-dhcp-server
+release /etc/default/isc-dhcp-server
 #================================================================
 release /usr/local/bin/busybox 755
 release /etc/busybox/httpd.conf
