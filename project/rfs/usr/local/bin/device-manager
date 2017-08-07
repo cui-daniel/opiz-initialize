@@ -1,0 +1,139 @@
+#!/bin/bash
+
+#device-manager network enable <NIC>
+#device-manager network set <NIC> type <TYPE>
+#device-manager network set <NIC> ssid <SSID>
+#device-manager network set <NIC> password <PASSWORD>
+#device-manager network set <NIC> address <ADDRESS>
+#device-manager network set <NIC> netmask <NETMASK>
+#device-manager network set <NIC> gateway <GATEWAY>
+#device-manager network set <NIC> name-servers <DNS>
+#device-manager network set <NIC> dhcp-server status
+#device-manager network set <NIC> dhcp-server range <BEGIN> <END>
+#device-manager network set <NIC> dhcp-server pxe <PXE>
+
+function function_main() {
+	case "$1" in
+		network)
+			shift
+			function_network "$@"
+		;;
+		*)
+			function_help
+		;;
+	esac
+}
+
+function function_network() {
+	case "$1" in
+		set)
+			shift
+			function_network_set "$@"
+		;;
+		get)
+			shift
+			function_network_get "$@"
+		*)
+			function_network_help
+		;;
+	esac
+}
+
+function function_network_set() {
+	interface=$(echo "$1" | grep '^[a-z][a-z0-9]*[0-9]$')
+	if [ -z "$interface" ]
+	then
+		function_network_set_help
+		return
+	fi
+	mkdir -p /usr/local/etc/network
+	touch /usr/local/etc/network/$interface
+	case "$2" in
+		type)
+			shift 2
+			function_network_set_type $interface $@
+		;;
+		ssid)
+			shift 2
+			function_network_set_type $interface $@
+		;;
+		password)
+			shift 2
+			function_network_set_type $interface $@
+		;;
+		address)
+			shift 2
+			function_network_set_type $interface $@
+		;;
+		netmask)
+			shift 2
+			function_network_set_type $interface $@
+		;;
+		gateway)
+			shift 2
+			function_network_set_type $interface $@
+		;;
+		name-servers)
+			shift 2
+			function_network_set_type $interface $@
+		;;
+		dhcp-server)
+			shift 2
+			function_network_set_type $interface $@
+		;;
+		*)
+			function_network_set_help
+		;;
+	esac
+}
+
+function function_network_get() {
+	interface=$(echo "$1" | grep '^[a-z][a-z0-9]*[0-9]$')
+	if [ -z "$interface" ]
+	then
+		function_network_set_help
+		return
+	fi
+	mkdir -p /usr/local/etc/network
+	touch /usr/local/etc/network/$interface
+	case "$2" in
+		type)
+			shift 2
+			function_network_set_type $interface $@
+		;;
+		ssid)
+			shift 2
+			function_network_set_type $interface $@
+		;;
+		password)
+			shift 2
+			function_network_set_type $interface $@
+		;;
+		address)
+			shift 2
+			function_network_set_type $interface $@
+		;;
+		netmask)
+			shift 2
+			function_network_set_type $interface $@
+		;;
+		gateway)
+			shift 2
+			function_network_set_type $interface $@
+		;;
+		name-servers)
+			shift 2
+			function_network_set_type $interface $@
+		;;
+		dhcp-server)
+			shift 2
+			function_network_set_type $interface $@
+		;;
+		*)
+			function_network_set_help
+		;;
+	esac
+}
+
+function_main "$@"
+

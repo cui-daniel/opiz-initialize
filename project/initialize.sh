@@ -78,6 +78,9 @@ apt-get install -y isc-dhcp-server
 backup /etc/default/isc-dhcp-server
 release /etc/default/isc-dhcp-server
 #================================================================
+apt-get install -y tftpd-hpa
+apt-get install -y pxelinux
+#================================================================
 release /usr/local/bin/busybox 755
 release /etc/busybox/httpd.conf
 #================================================================
