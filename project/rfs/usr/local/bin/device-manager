@@ -1,139 +1,342 @@
 #!/bin/bash
 
-#device-manager network enable <NIC>
-#device-manager network set <NIC> type <TYPE>
-#device-manager network set <NIC> ssid <SSID>
-#device-manager network set <NIC> password <PASSWORD>
-#device-manager network set <NIC> address <ADDRESS>
-#device-manager network set <NIC> netmask <NETMASK>
-#device-manager network set <NIC> gateway <GATEWAY>
-#device-manager network set <NIC> name-servers <DNS>
-#device-manager network set <NIC> dhcp-server status
-#device-manager network set <NIC> dhcp-server range <BEGIN> <END>
-#device-manager network set <NIC> dhcp-server pxe <PXE>
+#====LIBRARY========
 
-function function_main() {
-	case "$1" in
+function _system_exit() {
+	echo "$@"
+	exit
+}
+
+function _shell_get_parameter() {
+	name=$1
+	shift
+	for item in "$@"
+	do
+		key=${item%%=*}
+		value=${item#*=}
+		[ "$key" = "$name" ] && echo "$value"
+		[ "$key" = "$name" ] && break
+	done
+}
+
+function _shell_get_parameters() {
+	name=$1
+	shift
+	for item in "$@"
+	do
+		key=${item%%=*}
+		value=${item#*=}
+		[ "$key" = "$name" ] && echo "$value"
+	done
+}
+
+function _file_backup() {
+	[ -z "$1" ] && return
+	[ -e "$1" ] || return
+	[ -e "$1.backup" ] && return
+	cp $1 $1.backup
+}
+
+function _string_assert_contains() {
+	value=$1
+	shift
+	for item in "$@"
+	do
+		[ "$value" = "$item" ] && return 0
+	done
+	return 1
+}
+
+function _string_assert_empty() {
+	[ -z "$1" ] && return 0
+	return 1
+}
+
+function _network_assert_interface() {
+	[ -z "$1" ] && return 1
+	[ -e /sys/class/net/$1 ] && return 0
+	return 1
+}
+
+function _network_assert_address() {
+	[ -z "$1" ] && return 1
+	ipcalc -n $1 | grep -q INVALID && return 1
+	return 0
+}
+	
+function _network_set_address() {
+	ip address flush dev wlan0
+	if [ "$2" = "dhcp" ]
+	then
+		/sbin/dhclient -1 -v -pf /run/dhclient.$1.pid -lf /var/lib/dhcp/dhclient.$1.leases $1
+	else
+		ip address add $2 dev wlan0
+	fi
+	if [ -n "$3" ]
+	then
+		ip route | grep default | awk '{print $3}' | xargs --no-run-if-empty ip route del default via
+		ip route add default via $3
+	fi
+}
+
+function _network_get_address() {
+	ip addr show dev $1 | grep -o '[0-9]*\.[0-9]*\.[0-9]*\.[0-9]*/[0-9]*'
+}
+
+function _network_get_gateway() {
+	ip route show dev $1 | grep default | grep -o '[0-9]*\.[0-9]*\.[0-9]*\.[0-9]*'
+}
+
+function _network_get_subnet() {
+	ipcalc -b $1 2>/dev/null | grep Network | awk '{print $2}' | cut -d / -f 1
+}
+
+function _network_get_netmask() {
+	ipcalc -b $1 2>/dev/null | grep Netmask | awk '{print $2}'
+}
+
+function _network_get_subnet_min() {
+	ipcalc -b $1 2>/dev/null | grep HostMin | awk '{print $2}'
+}
+
+function _network_get_subnet_max() {
+	ipcalc -b $1 2>/dev/null | grep HostMax | awk '{print $2}'
+}
+
+function _network_get_nameservers() {
+	cat /etc/resolv.conf | grep "^nameserver" | grep -o '[0-9]*\.[0-9]*\.[0-9]*\.[0-9]*' |  sort -u 
+}
+
+#====LIBRARY========
+
+function _help() {
+	echo "device-manager network wireless hotspot --interface=<interface> --device=<nl80211|wext|wired|none> --ssd=<ssid> --password=[password] --address=<address/netmask>"
+	echo "device-manager network wireless station --interface=<interface> --device=<nl80211|wext|wired|none> --ssd=<ssid> --password=[password] --address=<address/netmask> --gateway=[gateway]"
+	echo "device-manager network wired --interface=<interface> --address=<address/netmask> --gateway=[gateway]"
+	echo "device-manager network resolv --name-server=<server> ..."
+	echo "device-manager service dhcpd --interfaces=<interfaces> --<interface>-filter=<allow|deny> --<interface>-hosts=<hosts> --<interface>-pxe=<pxe>"
+}
+
+function _main() {
+	command="$1"
+	shift
+	case "$command" in
 		network)
-			shift
-			function_network "$@"
+			_network "$@"
+		;;
+		service)
+			_service "$@"
 		;;
 		*)
-			function_help
+			_help
 		;;
 	esac
 }
 
-function function_network() {
-	case "$1" in
-		set)
-			shift
-			function_network_set "$@"
+function _service() {
+	command="$1"
+	shift
+	case "$command" in
+		dhcpd)
+			_service_dhcpd "$@"
 		;;
-		get)
-			shift
-			function_network_get "$@"
 		*)
-			function_network_help
+			_help | grep network
 		;;
 	esac
 }
 
-function function_network_set() {
-	interface=$(echo "$1" | grep '^[a-z][a-z0-9]*[0-9]$')
-	if [ -z "$interface" ]
+function _service_dhcpd() {
+	interfaces=$(_shell_get_parameters --interfaces $@ | tr ',' '\n' | tr -d ' ' | grep -v '^$' | sort -u | xargs echo)
+	for item in $interfaces
+	do
+		_network_assert_interface $item || _system_exit "interface error: $item"
+	done
+	_file_backup /etc/default/isc-dhcp-server
+	echo "INTERFACE=\"$interfaces\"" > /etc/default/isc-dhcp-server
+
+	_file_backup /etc/dhcp/dhcpd.conf
+	cat >/etc/dhcp/dhcpd.conf<<-EOF
+	ddns-update-style none;
+	default-lease-time 600;
+	max-lease-time 7200;
+	log-facility local7;
+	EOF
+
+	for nic in $interfaces
+	do
+		address=$(_network_get_address $nic | cut -d / -f 1)
+		gateway=$(_network_get_gateway $nic)
+		subnet=$(_network_get_subnet $address)
+		netmask=$(_network_get_netmask $address)
+		dns=$(_network_get_nameservers | xargs echo | tr ' ' ',' | sed "s/127.[0-9]*.[0-9]*.[0-9]*/$address/g")
+		filter=$(_shell_get_parameter --$nic-filter $@)
+		hosts=$(_shell_get_parameter --$nic-hosts $@)
+		start=$(_network_get_subnet_min $address)
+		end=$(_network_get_subnet_max $address)
+		[ -z "$gateway" ] && gateway=$address
+		[ -z "$hosts" ] && filter=""
+		for host in $(echo "$hosts" | tr '[A-F]' '[a-f]' | tr ',' ' ')
+		do
+			class="$nic-$(echo $host | tr -d :)"
+			echo "class \"$class\"  { match if substring(hardware,1,6) = $host; }"
+		done
+		echo -e "subnet $subnet netmask $netmask {"
+		echo -e "\toption subnet-mask $netmask;"
+		echo -e "\toption routers $gateway;"
+		echo -e "\toption domain-name \"snail.org.cn\";"
+		echo -e "\toption domain-name-servers $dns;"
+		echo -e "\tpool {"
+		echo  -e "\t\trange $start $end;"
+		for host in $(echo "$hosts" | tr ',' ' ')
+		do
+			class="$nic-$(echo $host | tr -d :)"
+			[ "$filter" = "deny" ] && echo -e "\t\t\tdeny members of \"$class\";"
+			[ "$filter" = "allow" ] && echo  -e "\t\t\tallow members of \"$class\";"
+		done
+		echo -e "\t\t}"
+		echo -e "\t}"
+	done >> /etc/dhcp/dhcpd.conf
+	/etc/init.d/isc-dhcp-server restart
+}
+
+function _network() {
+	command="$1"
+	shift
+	case "$command" in
+		wireless)
+			_network_wireless "$@"
+		;;
+		wired)
+			_network_wired "$@"
+		;;
+		resolv)
+			_network_resolv "$@"
+		;;
+		*)
+			_help | grep network
+		;;
+	esac
+}
+
+function _network_resolv() {
+	_shell_get_parameters --name-server $@ | xargs -i echo nameserver {} > /etc/resolv.conf
+}
+
+function _network_wired() {
+	interface=$(_shell_get_parameter --interface $@)
+	address=$(_shell_get_parameter --address $@)
+	gateway=$(_shell_get_parameter --gateway $@)
+
+	_network_assert_interface $interface  || _system_exit "interface error: $interface"
+
+	if [ "$address" = "dhcp" ]
 	then
-		function_network_set_help
-		return
+		_network_set_address $interface $address
+	else
+		_network_assert_address $address || _system_exit "address error: $address"
+		_network_set_address $interface $address $gateway
 	fi
-	mkdir -p /usr/local/etc/network
-	touch /usr/local/etc/network/$interface
-	case "$2" in
-		type)
-			shift 2
-			function_network_set_type $interface $@
+}
+
+function _network_wireless() {
+	command="$1"
+	shift
+	case "$command" in
+		hotspot)
+			_network_wireless_hotspot "$@"
 		;;
-		ssid)
-			shift 2
-			function_network_set_type $interface $@
-		;;
-		password)
-			shift 2
-			function_network_set_type $interface $@
-		;;
-		address)
-			shift 2
-			function_network_set_type $interface $@
-		;;
-		netmask)
-			shift 2
-			function_network_set_type $interface $@
-		;;
-		gateway)
-			shift 2
-			function_network_set_type $interface $@
-		;;
-		name-servers)
-			shift 2
-			function_network_set_type $interface $@
-		;;
-		dhcp-server)
-			shift 2
-			function_network_set_type $interface $@
+		station)
+			_network_wireless_station "$@"
 		;;
 		*)
-			function_network_set_help
+			_help | grep wireless
 		;;
 	esac
 }
 
-function function_network_get() {
-	interface=$(echo "$1" | grep '^[a-z][a-z0-9]*[0-9]$')
-	if [ -z "$interface" ]
+function _network_wireless_hotspot() {
+	interface=$(_shell_get_parameter --interface $@)
+	device=$(_shell_get_parameter --device $@)
+	ssid=$(_shell_get_parameter --ssid $@)
+	password=$(_shell_get_parameter --password $@)
+	address=$(_shell_get_parameter --address $@)
+
+	cfg=/tmp/hostapd-$interface.conf
+	pid=/tmp/hostapd-$interface.pid
+
+	_network_assert_interface $interface  || _system_exit "interface error: $interface"
+	_string_assert_contains $device nl80211 wext wired none || _system_exit "device error: $device"
+	_network_assert_address $address || _system_exit "address error: $address"
+
+	ps -ax -o pid,args | grep -w wpa_supplicant | grep $interface | awk '{print $1}' | xargs --no-run-if-empty kill
+	ps -ax -o pid,args | grep -w hostapd | grep $interface | awk '{print $1}' | xargs --no-run-if-empty kill
+	ps -ax -o pid,args | grep -w dhclient | grep $interface | awk '{print $1}' | xargs --no-run-if-empty kill
+	sleep 3
+
+	cat >$cfg<<-EOF
+	interface=$interface
+	macaddr_acl=0
+	auth_algs=1
+	driver=$device
+	hw_mode=g
+	ieee80211n=1
+	channel=1
+	ssid=$ssid
+	ignore_broadcast_ssid=0
+	EOF
+
+	if [ -n "$password" ]
 	then
-		function_network_set_help
-		return
+		echo wpa=3 >> $cfg
+		echo wpa_passphrase=$password >> $cfg
+		echo wpa_key_mgmt=WPA-PSK >> $cfg
+		echo wpa_pairwise=TKIP >> $cfg
+		echo rsn_pairwise=CCMP >> $cfg
 	fi
-	mkdir -p /usr/local/etc/network
-	touch /usr/local/etc/network/$interface
-	case "$2" in
-		type)
-			shift 2
-			function_network_set_type $interface $@
-		;;
-		ssid)
-			shift 2
-			function_network_set_type $interface $@
-		;;
-		password)
-			shift 2
-			function_network_set_type $interface $@
-		;;
-		address)
-			shift 2
-			function_network_set_type $interface $@
-		;;
-		netmask)
-			shift 2
-			function_network_set_type $interface $@
-		;;
-		gateway)
-			shift 2
-			function_network_set_type $interface $@
-		;;
-		name-servers)
-			shift 2
-			function_network_set_type $interface $@
-		;;
-		dhcp-server)
-			shift 2
-			function_network_set_type $interface $@
-		;;
-		*)
-			function_network_set_help
-		;;
-	esac
+
+	hostapd -B -P $pid $cfg
+
+	_network_set_address $interface $address
 }
 
-function_main "$@"
+function _network_wireless_station() {
+	interface=$(_shell_get_parameter --interface $@)
+	device=$(_shell_get_parameter --device $@)
+	ssid=$(_shell_get_parameter --ssid $@)
+	password=$(_shell_get_parameter --password $@)
+	address=$(_shell_get_parameter --address $@)
+	gateway=$(_shell_get_parameter --gateway $@)
+
+	cfg=/tmp/wpa_supplicant-$interface.conf
+	pid=/tmp/wpa_supplicant-$interface.pid
+	touch $cfg
+
+	_network_assert_interface $interface  || _system_exit "interface error: $interface"
+	_string_assert_contains $device nl80211 wext wired none || _system_exit "device error: $device"
+	[ "$address" = "dhcp" ] || _network_assert_address $address || _system_exit "address error: $address"
+	[ -z "$gateway" ] || _network_assert_address $gateway || _system_exit "gateway error: $gateway"
+
+	ps -ax -o pid,args | grep -w wpa_supplicant | grep $interface | awk '{print $1}' | xargs --no-run-if-empty kill
+	ps -ax -o pid,args | grep -w hostapd | grep $interface | awk '{print $1}' | xargs --no-run-if-empty kill
+	ps -ax -o pid,args | grep -w dhclient | grep $interface | awk '{print $1}' | xargs --no-run-if-empty kill
+	sleep 3
+
+	wpa_supplicant -B -D$device -i$interface -c$cfg -C$pid
+	wpa_cli -i$interface -p$pid list_network | grep -o '[0-9]*' | xargs -i wpa_cli -i$interface -p$pid remove_network {}
+	wpa_cli -i$interface -p$pid add_network
+	wpa_cli -i$interface -p$pid set_network 0 ssid "\"$ssid\""
+	if [ -z "$password" ]
+	then
+		wpa_cli -i$interface -p$pid set_network 0 key_mgmt NONE
+	else
+		wpa_cli -i$interface -p$pid set_network 0 psk "\"$password\""
+	fi
+	wpa_cli -i$interface -p$pid select_network 0
+	wpa_cli -i$interface -p$pid enable_network 0
+
+	_network_set_address $interface $address $gateway
+}
+
+_main "$@"
 
