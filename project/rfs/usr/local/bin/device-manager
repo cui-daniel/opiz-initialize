@@ -114,7 +114,7 @@ function _help() {
 	echo "device-manager network wireless station --interface=<interface> --device=<nl80211|wext|wired|none> --ssd=<ssid> --password=[password] --address=<address/netmask> --gateway=[gateway]"
 	echo "device-manager network wired --interface=<interface> --address=<address/netmask> --gateway=[gateway]"
 	echo "device-manager network resolv --name-server=<server> ..."
-	echo "device-manager service dhcpd --interfaces=<interfaces> --<interface>-filter=<allow|deny> --<interface>-hosts=<hosts> --<interface>-pxe=<pxe>"
+	echo "device-manager service dhcpd --interfaces=<interfaces> --<interface>-filter=<allow|deny> --<interface>-hosts=<hosts> --<interface>-pxe=<pxefile>"
 }
 
 function _main() {
@@ -172,6 +172,7 @@ function _service_dhcpd() {
 		dns=$(_network_get_nameservers | xargs echo | tr ' ' ',' | sed "s/127.[0-9]*.[0-9]*.[0-9]*/$address/g")
 		filter=$(_shell_get_parameter --$nic-filter $@)
 		hosts=$(_shell_get_parameter --$nic-hosts $@)
+		pxe=$(_shell_get_parameter --$nic-pxe $@)
 		start=$(_network_get_subnet_min $address)
 		end=$(_network_get_subnet_max $address)
 		[ -z "$gateway" ] && gateway=$address
@@ -186,16 +187,17 @@ function _service_dhcpd() {
 		echo -e "\toption routers $gateway;"
 		echo -e "\toption domain-name \"snail.org.cn\";"
 		echo -e "\toption domain-name-servers $dns;"
+		[ -n "$pxe" ] && echo -e "\toption bootfile-name \"$pxe\";"
 		echo -e "\tpool {"
 		echo  -e "\t\trange $start $end;"
 		for host in $(echo "$hosts" | tr ',' ' ')
 		do
 			class="$nic-$(echo $host | tr -d :)"
-			[ "$filter" = "deny" ] && echo -e "\t\t\tdeny members of \"$class\";"
-			[ "$filter" = "allow" ] && echo  -e "\t\t\tallow members of \"$class\";"
+			[ "$filter" = "deny" ] && echo -e "\t\tdeny members of \"$class\";"
+			[ "$filter" = "allow" ] && echo  -e "\t\tallow members of \"$class\";"
 		done
-		echo -e "\t\t}"
 		echo -e "\t}"
+		echo -e "}"
 	done >> /etc/dhcp/dhcpd.conf
 	/etc/init.d/isc-dhcp-server restart
 }

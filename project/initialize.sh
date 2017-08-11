@@ -49,6 +49,8 @@ apt-get install -y mpg321
 #================================================================
 apt-get install -y axel
 #================================================================
+apt-get install -y ipcalc
+#================================================================
 apt-get install -y cryptsetup
 #================================================================
 apt-get install -y samba
@@ -59,11 +61,6 @@ smbpasswd -a daniel
 apt-get install -y nginx
 backup /etc/nginx/sites-available/default
 release /etc/nginx/sites-available/default
-#================================================================
-#apt-get install -y dnsmasq
-#backup /etc/dnsmasq.conf
-#release /etc/dnsmasq.conf
-#release /etc/dnsmasq.hosts
 #================================================================
 apt-get install -y pdnsd
 backup /etc/pdnsd.conf
@@ -98,6 +95,7 @@ release /etc/rc.local 755
 release /usr/local/etc/rc.local 755
 release /usr/local/bin/ssh-socks-deamon 755
 release /usr/local/bin/ssh-port-forward 755
+release /usr/local/bin/device-manager 755
 #================================================================
 cp -dr rfs/var/www/html/* /var/www/html/
 chmod 755 /var/www/html/cgi-bin/*.cgi
