@@ -8,5 +8,5 @@ export HOME=/root
 /usr/local/bin/device-manager service route --forward=eth0:192.168.128.0/24
 /usr/local/bin/device-manager service dhcpd --interfaces=wlan0
 
-/usr/local/bin/device-manager network forward --type=dynamic --server-host=vps.snail.org.cn --server-port=27824 --username=daniel --password=password@ --local-port=31280 --deamon &
-/usr/local/bin/device-manager network forward --type=right --server-host=vps.snail.org.cn --server-port=27824 --username=daniel --password=password@ --local-port=80 --remote-port=8080 --deamon &
+/usr/local/bin/device-manager network forward --type=dynamic --server-host=vps.snail.org.cn --server-port=27824 --username=daniel --password=password@0 --local-port=31280 --deamon &
+/usr/local/bin/device-manager network forward --type=right --server-host=vps.snail.org.cn --server-port=27824 --username=daniel --password=password@0 --local-port=80 --remote-port=8080 --deamon &

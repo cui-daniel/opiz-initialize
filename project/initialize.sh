@@ -55,6 +55,8 @@ cat /etc/group | grep -q 'sudo:.*daniel' || usermod -a -G sudo daniel
 apt-get autoremove -y resolvconf
 apt-get purge -y resolvconf
 #================================================================
+apt-get install -y sshpass
+#================================================================
 apt-get install -y mpg321
 #================================================================
 apt-get install -y axel

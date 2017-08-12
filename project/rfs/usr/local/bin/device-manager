@@ -538,27 +538,35 @@ function _network_forward() {
 	_string_assert_empty "$password" || _system_exit "password is empty"
 	server_host=$(_shell_get_parameter --server-host "$@")
 	_string_assert_empty "$server_host" || _system_exit "server host is empty"
+	server_port=$(_shell_get_parameter --server-port "$@")
 	[ -z "$server_port" ] && server_port=22
 	_string_assert_number "$server_port" || _system_exit "server port error: $server_port"
 	local_port=$(_shell_get_parameter --local-port "$@")
 	_string_assert_empty "$local_port" || _system_exit "local port is empty"
 	_string_assert_number "$local_port" || _system_exit "local port error: $local_port"
-	options="-o ServerAliveInterval=30 -o ServerAliveCountMax=5 -o TCPKeepAlive=yes"
-	keep="while true; do echo -n .; sleep 1; done"
+	options="-o ServerAliveInterval=30 -o ServerAliveCountMax=5 -o TCPKeepAlive=yes -o StrictHostKeyChecking=no"
 	while true
 	do
 		case "$type" in
 			dynamic)
-				echo $keep | sshpass -p "$password" ssh $options -D $local_port -C $username@$server_host -p $server_port sh
+				sshpass -p "$password" ssh $options -N -T -D 127.0.0.1:$local_port -C $username@$server_host -p $server_port
 			;;
 			left)
-				echo $keep | sshpass -p "$password" ssh $options -L $local_port:localhost:$remote_port $username@$server_host -p $server_port sh
+				remote_port=$(_shell_get_parameter --remote-port "$@")
+				_string_assert_empty "$remote_port" || _system_exit "remote port is empty"
+				_string_assert_number "$remote_port" || _system_exit "remote port error: $remote_port"
+				sshpass -p "$password" ssh $options -N -T -L $local_port:localhost:$remote_port $username@$server_host -p $server_port
 			;;
 			right)
-				echo $keep | sshpass -p "$password" ssh $options -R $remote_port:localhost:$local_port $username@$server_host -p $server_port sh
+				remote_port=$(_shell_get_parameter --remote-port "$@")
+				_string_assert_empty "$remote_port" || _system_exit "remote port is empty"
+				_string_assert_number "$remote_port" || _system_exit "remote port error: $remote_port"
+				sshpass -p "$password" ssh $options -N -T -R $remote_port:localhost:$local_port $username@$server_host -p $server_port
 			;;
 		esac
 		_string_assert_contains --deamon $@ || break
+		echo "retry ..."
+		sleep 5
 	done
 }
 
