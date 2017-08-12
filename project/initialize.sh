@@ -30,20 +30,30 @@ function release() {
 	fi
 }
 
+function confirm() {
+	unset input
+	read -p "$1 [Y|n]: " -t 5 input
+	echo
+	[ -z "$input" -o "input" = "y" -o "$input" = "Y" ] && return 0
+	return 1
+}
 cd $(dirname $0)
 
 mkdir -p /storage
 #================================================================
-dpkg-reconfigure locales
+confirm "execute dpkg-reconfigure locales" && dpkg-reconfigure locales
 #================================================================
-apt-get update
+confirm "execute apt-get update" && apt-get update
 apt-get upgrade -y
 #================================================================
 apt-get install -y apt-file
-apt-file update
+confirm "execute apt-file update" && apt-file update
 #================================================================
 cat /etc/passwd | grep -q daniel || adduser daniel
 cat /etc/group | grep -q 'sudo:.*daniel' || usermod -a -G sudo daniel
+#================================================================
+apt-get autoremove -y resolvconf
+apt-get purge -y resolvconf
 #================================================================
 apt-get install -y mpg321
 #================================================================
@@ -84,4 +94,3 @@ release /usr/local/bin/device-manager 755
 cp -dr rfs/var/www/html/* /var/www/html/
 chmod 755 /var/www/html/cgi-bin/*.cgi
 #================================================================
-

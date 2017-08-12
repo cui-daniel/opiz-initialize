@@ -1,5 +1,7 @@
 #!/bin/bash
 
+export PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+
 #====LIBRARY========
 
 function _system_exit() {
@@ -53,7 +55,7 @@ function _string_assert_number() {
 }
 
 function _string_assert_empty() {
-	[ -z "$1" ] && return 0
+	[ -z "$1" ] || return 0
 	return 1
 }
 
@@ -115,13 +117,21 @@ function _network_get_nameservers() {
 #====LIBRARY========
 
 function _help() {
-	echo "device-manager network wireless hotspot --interface=<interface> --device=<nl80211|wext|wired|none> --ssd=<ssid> --password=[password] --address=<address/netmask>"
-	echo "device-manager network wireless station --interface=<interface> --device=<nl80211|wext|wired|none> --ssd=<ssid> --password=[password] --address=<address/netmask> --gateway=[gateway]"
+	echo "device-manager network wireless hotspot --interface=<interface> --device=<nl80211|wext|wired|none> --ssid=<ssid> --password=[password] --address=<address/netmask>"
+	echo "device-manager network wireless station --interface=<interface> --device=<nl80211|wext|wired|none> --ssid=<ssid> --password=[password] --address=<address/netmask> --gateway=[gateway]"
 	echo "device-manager network wired --interface=<interface> --address=<address/netmask> --gateway=[gateway]"
 	echo "device-manager network resolv --name-server=<server> ..."
-	echo "device-manager network forward --type=<dynamic|left|right> --server-host=<server> --server-port=<port> --username=<username> --password=<password> --local-port=<port> --deamon"
+	echo "device-manager network forward --type=<dynamic|left|right> --server-host=<server> --server-port=<port> --username=<username> --password=<password> --local-port=<port> --remote-port=<port> --deamon"
+	echo "device-manager network resolv --name-server=<server> ..."
 	echo "device-manager service dhcpd --interfaces=<interfaces> --<interface>-filter=<allow|deny> --<interface>-hosts=<hosts> --<interface>-pxe=<pxefile>"
-	echo "device-manager service pdnsd --parent=<server> ..."
+	echo "device-manager service pdnsd --server=<server> ..."
+	echo "device-manager service samba list --details"
+	echo "device-manager service samba create --name=<name> --comment=<comment> --path=<path> --browseable=<yes|no> --writable=<yes|no>"
+	echo "device-manager service samba delete --name=<name>"
+	echo "device-manager service samba reload"
+	echo "device-manager service samba user <create|delete|enable|disable|password> --name=<username>"
+	echo "device-manager service route --forward=<nic:address/netmask> ..."
+	echo "device-manager busybox httpd --port=<address:port> --home=<home>"
 }
 
 function _main() {
@@ -134,10 +144,36 @@ function _main() {
 		service)
 			_service "$@"
 		;;
+		busybox)
+			_busybox "$@"
+		;;
 		*)
 			_help
 		;;
 	esac
+}
+
+function _busybox() {
+	command="$1"
+	shift
+	case "$command" in
+		httpd)
+			_busybox_httpd "$@"
+		;;
+		*)
+			_help | grep busybox
+		;;
+	esac	
+}
+
+function _busybox_httpd() {
+	port=$(_shell_get_parameters --port $@)
+	_string_assert_empty "$port" || _system_exit "port is empty"
+	home=$(_shell_get_parameters --home $@)
+	[ -z "$home" ] && home=/var/www/html/
+	[ -e "$home" ] || _system_exit "$home does not exist"
+	[ -d "$home" ] || _system_exit "$home not is directorty"
+	busybox httpd -p $port -h $home -c /usr/local/etc/httpd.conf
 }
 
 function _service() {
@@ -149,8 +185,230 @@ function _service() {
 		;;
 		pdnsd)
 			_service_pdnsd "$@"
+		;;
+		samba)
+			_service_samba "$@"
+		;;
+		route)
+			_service_route "$@"
+		;;
 		*)
-			_help | grep network
+			_help | grep service
+		;;
+	esac
+}
+
+function _service_route() {
+	/sbin/iptables-save | grep POSTROUTING | grep MASQUERADE | sed 's/^-A/iptables -t nat -D/' | bash
+	for forward in $(_shell_get_parameters --forward $@)
+	do
+		[ -z "$forward" ] && continue
+		interface=$(echo $forward | cut -d : -f 1)
+		address=$(echo $forward | cut -d : -f 2)
+		_network_assert_interface $interface || _system_exit "interface error: $interface"
+		_network_assert_address $address || _system_exit "address error: $address"
+		iptables -t nat -A POSTROUTING -s $address -o $interface -j MASQUERADE
+	done
+}
+
+function _service_samba() {
+	command="$1"
+	shift
+	case "$command" in
+		list)
+			_service_samba_list "$@"
+		;;
+		create)
+			_service_samba_create "$@"
+		;;
+		delete)
+			_service_samba_delete "$@"
+		;;
+		reload)
+			_service_samba_reload
+		;;
+		user)
+			_service_samba_user "$@"
+		;;
+		*)
+			_help | grep service | grep samba
+		;;
+	esac
+}
+
+function _service_pdnsd() {
+	_file_backup /etc/pdnsd.conf
+	temp=$(mktemp)
+	_network_get_nameservers >$temp
+	_shell_get_parameters --server "$@" >>$temp
+	servers=$(cat $temp | grep -o '[0-9]*\.[0-9]*\.[0-9]*\.[0-9]*' | grep -v "^127" |  sort -u | xargs echo | tr ' ' ',')
+	[ -z "$servers" ] && servers="114.114.114.114"
+	cat >/etc/pdnsd.conf<<-EOF
+	global {
+	debug = on;
+	perm_cache = 1024;
+	cache_dir = /var/pdnsd;
+	run_as = pdnsd;
+	server_port = 53;
+	server_ip = any;
+	status_ctl = on;
+	min_ttl = 15m;
+	max_ttl = 1w;
+	timeout = 10;
+	}
+
+	server {
+		label = $(hostname);
+		ip = $servers;
+		root_server = on;
+		uptest = none;
+	}
+
+	source {
+		owner = localhost;
+		file = /etc/hosts;
+	}
+
+	rr {
+		name = localhost;
+		reverse = on;
+		a = 127.0.0.1;
+		owner = localhost;
+		soa = localhost,root.localhost,42,86400,900,86400,86400;
+	}
+	EOF
+	echo "nameserver 127.0.0.1" >/etc/resolv.conf
+	cat >/etc/default/pdnsd<<-EOF
+	START_DAEMON=yes
+	AUTO_MODE=
+	START_OPTIONS=
+	EOF
+	/etc/init.d/pdnsd restart
+}
+
+function _service_samba_list() {
+	[ -e /etc/samba/smb.conf.d ] || return
+	if _string_assert_contains --details "$@"
+	then
+		cat /etc/samba/smb.conf.d/* 2>/dev/null
+	else
+		ls /etc/samba/smb.conf.d/*  2>/dev/null
+	fi
+}
+
+function _service_samba_create() {
+	name=$(_shell_get_parameter --name "$@")
+	_string_assert_empty "$name" || _system_exit "name is empty"
+	[ -e /etc/samba/smb.conf.d/$name ] && _system_exit "$name already exists"
+	path=$(_shell_get_parameter --path "$@")
+	_string_assert_empty "$path" || _system_exit "path is empty"
+	[ -e $path ] || _system_exit "$path does not exist"
+	[ -d $path ] || _system_exit "$path not is directorty"
+	path=$(readlink -f $path)
+	comment=$(_shell_get_parameter --comment "$@")
+	[ -z "$comment" ] && comment="Shared $path"
+	browseable=$(_shell_get_parameter --browseable "$@")
+	[ -z "$browseable" ] && browseable=yes
+	_string_assert_contains $browseable yes no || _system_exit "browseable error: $browseable"
+	writable=$(_shell_get_parameter --writable "$@")
+	[ -z "$writable" ] && writable=yes
+	_string_assert_contains $writable yes no || _system_exit "writable error: $writable"
+	mkdir -p /etc/samba/smb.conf.d
+	cat >/etc/samba/smb.conf.d/$name<<-EOF
+	[$name]
+	    comment = $comment
+	    path = $path
+	    browseable = $browseable
+	    writable = $writable
+	EOF
+}
+
+function _service_samba_delete() {
+	name=$(_shell_get_parameter --name "$@")
+	_string_assert_empty "$name" || _system_exit "name is empty"
+	rm -rf /etc/samba/smb.conf.d/$name
+}
+
+function _service_samba_reload() {
+	_file_backup /etc/samba/smb.conf
+	cat >/etc/samba/smb.conf<<-EOF
+	[global]
+	   workgroup = WORKGROUP
+	   dns proxy = no
+	   log file = /var/log/samba/log.%m
+	   max log size = 1000
+	   syslog = 0
+	   panic action = /usr/share/samba/panic-action %d
+	   server role = standalone server
+	   passdb backend = tdbsam
+	   obey pam restrictions = yes
+	   unix password sync = yes
+	   passwd program = /usr/bin/passwd %u
+	   passwd chat = *Enter\snew\s*\spassword:* %n\n *Retype\snew\s*\spassword:* %n\n *password\supdated\ssuccessfully* .
+	   pam password change = yes
+	   map to guest = bad user
+	   usershare allow guests = yes
+	[homes]
+	   comment = Home Directories
+	   browseable = no
+	   read only = yes
+	   create mask = 0700
+	   directory mask = 0700
+	   valid users = %S
+	[printers]
+	   comment = All Printers
+	   browseable = no
+	   path = /var/spool/samba
+	   printable = yes
+	   guest ok = no
+	   read only = yes
+	   create mask = 0700
+	[print$]
+	   comment = Printer Drivers
+	   path = /var/lib/samba/printers
+	   browseable = yes
+	   read only = yes
+	   guest ok = no
+	EOF
+	cat /etc/samba/smb.conf.d/* 2>/dev/null >>/etc/samba/smb.conf
+	/etc/init.d/samba restart
+}
+
+function _service_samba_user() {
+	name=$(_shell_get_parameter --name "$@")
+	_string_assert_empty "$name" || _system_exit "name is empty"
+	command="$1"
+	shift
+	case "$command" in
+		create)
+			password=name=$(_shell_get_parameter --password "$@")
+			if [ -z "$password" ]
+			then
+				smbpasswd -a $name
+			else
+				(echo "$password"; echo "$password") | smbpasswd -s -a $name
+			fi
+		;;
+		delete)
+			smbpasswd -x $name
+		;;
+		enable)
+			smbpasswd -e $name
+		;;
+		disable)
+			smbpasswd -d $name
+		;;
+		password)
+			password=name=$(_shell_get_parameter --password "$@")
+			if [ -z "$password" ]
+			then
+				smbpasswd $name
+			else
+				(echo "$password"; echo "$password") | smbpasswd -s $name
+			fi
+		;;
+		*)
+			_help | grep service | grep samba | grep user
 		;;
 	esac
 }
