@@ -54,47 +54,31 @@ apt-get install -y ipcalc
 apt-get install -y cryptsetup
 #================================================================
 apt-get install -y samba
-backup /etc/samba/smb.conf
-release /etc/samba/smb.conf
-smbpasswd -a daniel
+#================================================================
+apt-get install -y pdnsd
+#================================================================
+apt-get install -y isc-dhcp-server
+#================================================================
+apt-get install -y tftpd-hpa
+#================================================================
+apt-get install -y pxelinux
 #================================================================
 apt-get install -y nginx
 backup /etc/nginx/sites-available/default
 release /etc/nginx/sites-available/default
-#================================================================
-apt-get install -y pdnsd
-backup /etc/pdnsd.conf
-release /etc/pdnsd.conf
 #================================================================
 apt-get install -y privoxy
 backup /etc/privoxy/config
 release /etc/privoxy/config
 release /etc/privoxy/ladder.action
 #================================================================
-apt-get install -y isc-dhcp-server
-backup /etc/default/isc-dhcp-server
-release /etc/default/isc-dhcp-server
-#================================================================
-apt-get install -y tftpd-hpa
-apt-get install -y pxelinux
-#================================================================
-release /usr/local/bin/busybox 755
-release /etc/busybox/httpd.conf
-#================================================================
-backup /etc/hostapd.conf
-release /etc/hostapd.conf
-#================================================================
 backup /etc/sysctl.conf
 release /etc/sysctl.conf
-#================================================================
-backup /etc/wpa_supplicant.conf
-release /etc/wpa_supplicant.conf
-#================================================================
 backup /etc/rc.local
 release /etc/rc.local 755
+release /usr/local/bin/busybox 755
 release /usr/local/etc/rc.local 755
-release /usr/local/bin/ssh-socks-deamon 755
-release /usr/local/bin/ssh-port-forward 755
+release /etc/local/etc/httpd.conf
 release /usr/local/bin/device-manager 755
 #================================================================
 cp -dr rfs/var/www/html/* /var/www/html/

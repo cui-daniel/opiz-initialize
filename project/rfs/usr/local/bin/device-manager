@@ -47,6 +47,11 @@ function _string_assert_contains() {
 	return 1
 }
 
+function _string_assert_number() {
+	echo "$1" | grep -q "^[0-9]*$" && return 0
+	return 1
+}
+
 function _string_assert_empty() {
 	[ -z "$1" ] && return 0
 	return 1
@@ -114,7 +119,9 @@ function _help() {
 	echo "device-manager network wireless station --interface=<interface> --device=<nl80211|wext|wired|none> --ssd=<ssid> --password=[password] --address=<address/netmask> --gateway=[gateway]"
 	echo "device-manager network wired --interface=<interface> --address=<address/netmask> --gateway=[gateway]"
 	echo "device-manager network resolv --name-server=<server> ..."
+	echo "device-manager network forward --type=<dynamic|left|right> --server-host=<server> --server-port=<port> --username=<username> --password=<password> --local-port=<port> --deamon"
 	echo "device-manager service dhcpd --interfaces=<interfaces> --<interface>-filter=<allow|deny> --<interface>-hosts=<hosts> --<interface>-pxe=<pxefile>"
+	echo "device-manager service pdnsd --parent=<server> ..."
 }
 
 function _main() {
@@ -140,10 +147,47 @@ function _service() {
 		dhcpd)
 			_service_dhcpd "$@"
 		;;
+		pdnsd)
+			_service_pdnsd "$@"
 		*)
 			_help | grep network
 		;;
 	esac
+}
+
+function _service_dhcpd() {
+	cat >/etc/pdnsd.conf<<-EOF
+	global {
+		debug = on;
+		perm_cache = 1024;
+		cache_dir = /var/pdnsd;
+		run_as = pdnsd;
+		server_port = 53;
+		server_ip = any;
+		status_ctl = on;
+		min_ttl = 15m;
+		max_ttl = 1w;
+		timeout = 10;
+	}
+	server {
+		label = $(hostname);
+		ip = $(_shell_get_parameters --parent | tr -d ' ' | grep -v '^$' | xargs echo | tr ' ' ',');
+		root_server = on;
+		uptest = none;
+	}
+	source {
+		owner = localhost;
+		file = /etc/hosts;
+	}
+	rr {
+		name = localhost;
+		reverse = on;
+		a = 127.0.0.1;
+		owner = localhost;
+		soa = localhost,root.localhost,42,86400,900,86400,86400;
+	}
+	EOF
+	/etc/init.d/pdnsd restart
 }
 
 function _service_dhcpd() {
@@ -215,10 +259,49 @@ function _network() {
 		resolv)
 			_network_resolv "$@"
 		;;
+		forward)
+			_network_forward "$@"
+		;;
 		*)
 			_help | grep network
 		;;
 	esac
+}
+
+function _network_forward() {
+	type=$(_shell_get_parameter --type "$@")
+	_string_assert_empty "$type" || _system_exit "username is empty"
+	_string_assert_contains $type dynamic left right || _system_exit "type error: $type"
+	username=$(_shell_get_parameter --username "$@")
+	[ -z "$username" ] && username=$USER
+	_string_assert_empty "$username" || _system_exit "username is empty"
+	password=$(_shell_get_parameter --password "$@")
+	[ -z "$password" ] && (read -s -p 'input password: ' password; echo)
+	_string_assert_empty "$password" || _system_exit "password is empty"
+	server_host=$(_shell_get_parameter --server-host "$@")
+	_string_assert_empty "$server_host" || _system_exit "server host is empty"
+	[ -z "$server_port" ] && server_port=22
+	_string_assert_number "$server_port" || _system_exit "server port error: $server_port"
+	local_port=$(_shell_get_parameter --local-port "$@")
+	_string_assert_empty "$local_port" || _system_exit "local port is empty"
+	_string_assert_number "$local_port" || _system_exit "local port error: $local_port"
+	options="-o ServerAliveInterval=30 -o ServerAliveCountMax=5 -o TCPKeepAlive=yes"
+	keep="while true; do echo -n .; sleep 1; done"
+	while true
+	do
+		case "$type" in
+			dynamic)
+				echo $keep | sshpass -p "$password" ssh $options -D $local_port -C $username@$server_host -p $server_port sh
+			;;
+			left)
+				echo $keep | sshpass -p "$password" ssh $options -L $local_port:localhost:$remote_port $username@$server_host -p $server_port sh
+			;;
+			right)
+				echo $keep | sshpass -p "$password" ssh $options -R $remote_port:localhost:$local_port $username@$server_host -p $server_port sh
+			;;
+		esac
+		_string_assert_contains --deamon $@ || break
+	done
 }
 
 function _network_resolv() {
@@ -230,12 +313,14 @@ function _network_wired() {
 	address=$(_shell_get_parameter --address $@)
 	gateway=$(_shell_get_parameter --gateway $@)
 
+	_string_assert_empty "$interface" || _system_exit "interface is empty"
 	_network_assert_interface $interface  || _system_exit "interface error: $interface"
 
 	if [ "$address" = "dhcp" ]
 	then
 		_network_set_address $interface $address
 	else
+		_string_assert_empty "$address" || _system_exit "address is empty"
 		_network_assert_address $address || _system_exit "address error: $address"
 		_network_set_address $interface $address $gateway
 	fi
@@ -267,8 +352,11 @@ function _network_wireless_hotspot() {
 	cfg=/tmp/hostapd-$interface.conf
 	pid=/tmp/hostapd-$interface.pid
 
+	_string_assert_empty "$interface" || _system_exit "interface is empty"
 	_network_assert_interface $interface  || _system_exit "interface error: $interface"
+	_string_assert_empty "$device" || _system_exit "device is empty"
 	_string_assert_contains $device nl80211 wext wired none || _system_exit "device error: $device"
+	_string_assert_empty "$address" || _system_exit "address is empty"
 	_network_assert_address $address || _system_exit "address error: $address"
 
 	ps -ax -o pid,args | grep -w wpa_supplicant | grep $interface | awk '{print $1}' | xargs --no-run-if-empty kill
@@ -314,8 +402,11 @@ function _network_wireless_station() {
 	pid=/tmp/wpa_supplicant-$interface.pid
 	touch $cfg
 
+	_string_assert_empty "$interface" || _system_exit "interface is empty"
 	_network_assert_interface $interface  || _system_exit "interface error: $interface"
+	_string_assert_empty "$device" || _system_exit "device is empty"
 	_string_assert_contains $device nl80211 wext wired none || _system_exit "device error: $device"
+	_string_assert_empty "$address" || _system_exit "address is empty"
 	[ "$address" = "dhcp" ] || _network_assert_address $address || _system_exit "address error: $address"
 	[ -z "$gateway" ] || _network_assert_address $gateway || _system_exit "gateway error: $gateway"
 
