@@ -70,7 +70,14 @@ function _network_assert_address() {
 	ipcalc -n $1 | grep -q INVALID && return 1
 	return 0
 }
-	
+
+function _network_reset_interface() {
+	ps -ax -o pid,args | grep -w wpa_supplicant | grep $1 | awk '{print $1}' | xargs --no-run-if-empty kill
+	ps -ax -o pid,args | grep -w hostapd | grep $1 | awk '{print $1}' | xargs --no-run-if-empty kill
+	ps -ax -o pid,args | grep -w dhclient | grep $1 | awk '{print $1}' | xargs --no-run-if-empty kill
+	sleep 3
+}
+
 function _network_set_address() {
 	ip address flush dev wlan0
 	if [ "$2" = "dhcp" ]
@@ -119,10 +126,10 @@ function _network_get_nameservers() {
 function _help() {
 	echo "device-manager network wireless hotspot --interface=<interface> --device=<nl80211|wext|wired|none> --ssid=<ssid> --password=[password] --address=<address/netmask>"
 	echo "device-manager network wireless station --interface=<interface> --device=<nl80211|wext|wired|none> --ssid=<ssid> --password=[password] --address=<address/netmask> --gateway=[gateway]"
+	echo "device-manager network wireless scan --interface=<interface> --device=<nl80211|wext|wired|none>"
 	echo "device-manager network wired --interface=<interface> --address=<address/netmask> --gateway=[gateway]"
 	echo "device-manager network resolv --name-server=<server> ..."
 	echo "device-manager network forward --type=<dynamic|left|right> --server-host=<server> --server-port=<port> --username=<username> --password=<password> --local-port=<port> --remote-port=<port> --deamon"
-	echo "device-manager network resolv --name-server=<server> ..."
 	echo "device-manager service dhcpd --interfaces=<interfaces> --<interface>-filter=<allow|deny> --<interface>-hosts=<hosts> --<interface>-pxe=<pxefile>"
 	echo "device-manager service pdnsd --server=<server> ..."
 	echo "device-manager service samba list --details"
@@ -131,6 +138,10 @@ function _help() {
 	echo "device-manager service samba reload"
 	echo "device-manager service samba user <create|delete|enable|disable|password> --name=<username>"
 	echo "device-manager service route --forward=<nic:address/netmask> ..."
+	echo "device-manager service pxe list --details"
+	echo "device-manager service pxe create --name=<name> --label=<comment> --kernel=<kernel> --initrd=<initrd> --append=<append>"
+	echo "device-manager service pxe delete --name=<name>"
+	echo "device-manager service pxe reload"
 	echo "device-manager busybox httpd --port=<address:port> --home=<home>"
 }
 
@@ -192,6 +203,9 @@ function _service() {
 		route)
 			_service_route "$@"
 		;;
+		pxe)
+			_service_pxe "$@"
+		;;
 		*)
 			_help | grep service
 		;;
@@ -209,6 +223,86 @@ function _service_route() {
 		_network_assert_address $address || _system_exit "address error: $address"
 		iptables -t nat -A POSTROUTING -s $address -o $interface -j MASQUERADE
 	done
+}
+
+function _service_pxe() {
+	command="$1"
+	shift
+	source /etc/default/tftpd-hpa
+	case "$command" in
+		list)
+			_service_pxe_list "$@"
+		;;
+		create)
+			_service_pxe_create "$@"
+		;;
+		delete)
+			_service_pxe_delete "$@"
+		;;
+		reload)
+			_service_pxe_reload
+		;;
+		*)
+			_help | grep service | grep pxe
+		;;
+	esac
+}
+function _service_pxe_list() {
+	[ -e $TFTP_DIRECTORY/boot ] || return
+	if _string_assert_contains --details "$@"
+	then
+		cat $TFTP_DIRECTORY/boot/*.pxe 2>/dev/null
+	else
+		ls $TFTP_DIRECTORY/boot/*.pxe  2>/dev/null
+	fi
+}
+
+function _service_pxe_create() {
+	name=$(_shell_get_parameter --name "$@")
+	_string_assert_empty "$name" || _system_exit "name is empty"
+	[ -e $TFTP_DIRECTORY/boot/$name.pxe ] && _system_exit "$name already exists"
+	label=$(_shell_get_parameter --label "$@")
+	[ -z "$label" ] && label="$name"
+	kernel=$(_shell_get_parameter --kernel "$@")
+	_string_assert_empty "$kernel" || kernel="/usr/lib/syslinux/memdisk"
+	[ -e $kernel ] || _system_exit "$kernel does not exist"
+	initrd=$(_shell_get_parameter --initrd "$@")
+	_string_assert_empty "$initrd" || _system_exit "initrd is empty"
+	[ -e $initrd ] || _system_exit "$initrd does not exist"
+	append=$(_shell_get_parameter --append "$@")
+	mkdir -p $TFTP_DIRECTORY/boot
+	cp $kernel $TFTP_DIRECTORY/boot/$name.kernel
+	cp $initrd $TFTP_DIRECTORY/boot/$name.initrd
+	cat >$TFTP_DIRECTORY/boot/$name.pxe<<-EOF
+	LABEL $name
+	MENU LABEL $label
+	kernel boot/$name.kernel
+	initrd boot/$name.initrd
+	append $append
+	EOF
+}
+
+function _service_pxe_delete() {
+	name=$(_shell_get_parameter --name "$@")
+	_string_assert_empty "$name" || _system_exit "name is empty"
+	rm -rf $TFTP_DIRECTORY/boot/$name.*
+}
+
+function _service_pxe_reload() {
+	[ -e $TFTP_DIRECTORY/pxelinux.0 ] || cp /usr/lib/PXELINUX/pxelinux.0 $TFTP_DIRECTORY/
+	[ -e $TFTP_DIRECTORY/libutil.c32 ] || cp /usr/lib/syslinux/modules/bios/libutil.c32 $TFTP_DIRECTORY/
+	[ -e $TFTP_DIRECTORY/ldlinux.c32 ] || cp /usr/lib/syslinux/modules/bios/ldlinux.c32 $TFTP_DIRECTORY/
+	[ -e $TFTP_DIRECTORY/libcom32.c32 ] || cp /usr/lib/syslinux/modules/bios/libcom32.c32 $TFTP_DIRECTORY/
+	[ -e $TFTP_DIRECTORY/vesamenu.c32 ] || cp /usr/lib/syslinux/modules/bios/vesamenu.c32 $TFTP_DIRECTORY/
+	mkdir -p $TFTP_DIRECTORY/pxelinux.cfg
+	cat >$TFTP_DIRECTORY/pxelinux.cfg/default<<-EOF
+	DEFAULT vesamenu.c32
+	TIMEOUT 100
+	PROMPT 0
+	MENU TITLE Daniel PXE loader
+	MENU COLOR BORDER 0 #0000 #0000 none
+	EOF
+	cat $TFTP_DIRECTORY/boot/*.pxe 2>/dev/null >>$TFTP_DIRECTORY/pxelinux.cfg/default
 }
 
 function _service_samba() {
@@ -490,6 +584,7 @@ function _service_dhcpd() {
 		echo -e "\toption domain-name \"snail.org.cn\";"
 		echo -e "\toption domain-name-servers $dns;"
 		[ -n "$pxe" ] && echo -e "\toption bootfile-name \"$pxe\";"
+		[ -n "$pxe" ] && echo -e "\tnext-Server $address;"
 		echo -e "\tpool {"
 		echo  -e "\t\trange $start $end;"
 		for host in $(echo "$hosts" | tr ',' ' ')
@@ -602,10 +697,36 @@ function _network_wireless() {
 		station)
 			_network_wireless_station "$@"
 		;;
+		scan)
+			_network_wireless_scan "$@"
+		;;
 		*)
-			_help | grep wireless
+			_help | grep network | grep wireless
 		;;
 	esac
+}
+
+function _network_wireless_scan() {
+	interface=$(_shell_get_parameter --interface $@)
+	device=$(_shell_get_parameter --device $@)
+
+	cfg=/tmp/wpa_supplicant-$interface.conf
+	pid=/tmp/wpa_supplicant-$interface.pid
+	touch $cfg
+
+	_string_assert_empty "$interface" || _system_exit "interface is empty"
+	_network_assert_interface $interface  || _system_exit "interface error: $interface"
+	_string_assert_empty "$device" || _system_exit "device is empty"
+	_string_assert_contains $device nl80211 wext wired none || _system_exit "device error: $device"
+
+	_network_reset_interface $interface
+
+	wpa_supplicant -B -D$device -i$interface -c$cfg -C$pid
+	wpa_cli -i$interface -p$pid scan &> /dev/null
+	sleep 5
+	wpa_cli -i$interface -p$pid scan_result | grep -v "^bssid" | awk '{printf("%2d) %-16s\t%s\t%s\t%s\t%s\n", NR, $5, $1, $2, $3, $4)}'
+
+	_network_reset_interface $interface
 }
 
 function _network_wireless_hotspot() {
@@ -625,10 +746,7 @@ function _network_wireless_hotspot() {
 	_string_assert_empty "$address" || _system_exit "address is empty"
 	_network_assert_address $address || _system_exit "address error: $address"
 
-	ps -ax -o pid,args | grep -w wpa_supplicant | grep $interface | awk '{print $1}' | xargs --no-run-if-empty kill
-	ps -ax -o pid,args | grep -w hostapd | grep $interface | awk '{print $1}' | xargs --no-run-if-empty kill
-	ps -ax -o pid,args | grep -w dhclient | grep $interface | awk '{print $1}' | xargs --no-run-if-empty kill
-	sleep 3
+	_network_reset_interface $interface
 
 	cat >$cfg<<-EOF
 	interface=$interface
@@ -676,10 +794,7 @@ function _network_wireless_station() {
 	[ "$address" = "dhcp" ] || _network_assert_address $address || _system_exit "address error: $address"
 	[ -z "$gateway" ] || _network_assert_address $gateway || _system_exit "gateway error: $gateway"
 
-	ps -ax -o pid,args | grep -w wpa_supplicant | grep $interface | awk '{print $1}' | xargs --no-run-if-empty kill
-	ps -ax -o pid,args | grep -w hostapd | grep $interface | awk '{print $1}' | xargs --no-run-if-empty kill
-	ps -ax -o pid,args | grep -w dhclient | grep $interface | awk '{print $1}' | xargs --no-run-if-empty kill
-	sleep 3
+	_network_reset_interface $interface
 
 	wpa_supplicant -B -D$device -i$interface -c$cfg -C$pid
 	wpa_cli -i$interface -p$pid list_network | grep -o '[0-9]*' | xargs -i wpa_cli -i$interface -p$pid remove_network {}
