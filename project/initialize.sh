@@ -90,7 +90,7 @@ backup /etc/rc.local
 release /etc/rc.local 755
 release /usr/local/bin/busybox 755
 release /usr/local/etc/rc.local 755
-release /etc/local/etc/httpd.conf
+release /usr/local/etc/httpd.conf 644
 release /usr/local/bin/device-manager 755
 #================================================================
 cp -dr rfs/var/www/html/* /var/www/html/

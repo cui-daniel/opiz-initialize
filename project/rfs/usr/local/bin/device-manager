@@ -130,7 +130,7 @@ function _help() {
 	echo "device-manager network wired --interface=<interface> --address=<address/netmask> --gateway=[gateway]"
 	echo "device-manager network resolv --name-server=<server> ..."
 	echo "device-manager network forward --type=<dynamic|left|right> --server-host=<server> --server-port=<port> --username=<username> --password=<password> --local-port=<port> --remote-port=<port> --deamon"
-	echo "device-manager service dhcpd --interfaces=<interfaces> --<interface>-filter=<allow|deny> --<interface>-hosts=<hosts> --<interface>-pxe=<pxefile>"
+	echo "device-manager service dhcpd --interfaces=<interfaces> --<interface>-filter=<allow|deny> --<interface>-hosts=<hosts> --<interface>-pxe --<interface>-pac"
 	echo "device-manager service pdnsd --server=<server> ..."
 	echo "device-manager service samba list --details"
 	echo "device-manager service samba create --name=<name> --comment=<comment> --path=<path> --browseable=<yes|no> --writable=<yes|no>"
@@ -507,7 +507,7 @@ function _service_samba_user() {
 	esac
 }
 
-function _service_dhcpd() {
+function _service_pdnsd() {
 	cat >/etc/pdnsd.conf<<-EOF
 	global {
 		debug = on;
@@ -557,6 +557,7 @@ function _service_dhcpd() {
 	default-lease-time 600;
 	max-lease-time 7200;
 	log-facility local7;
+	option proxy-config code 252 = text;
 	EOF
 
 	for nic in $interfaces
@@ -568,7 +569,6 @@ function _service_dhcpd() {
 		dns=$(_network_get_nameservers | xargs echo | tr ' ' ',' | sed "s/127.[0-9]*.[0-9]*.[0-9]*/$address/g")
 		filter=$(_shell_get_parameter --$nic-filter $@)
 		hosts=$(_shell_get_parameter --$nic-hosts $@)
-		pxe=$(_shell_get_parameter --$nic-pxe $@)
 		start=$(_network_get_subnet_min $address)
 		end=$(_network_get_subnet_max $address)
 		[ -z "$gateway" ] && gateway=$address
@@ -583,8 +583,9 @@ function _service_dhcpd() {
 		echo -e "\toption routers $gateway;"
 		echo -e "\toption domain-name \"snail.org.cn\";"
 		echo -e "\toption domain-name-servers $dns;"
-		[ -n "$pxe" ] && echo -e "\toption bootfile-name \"$pxe\";"
-		[ -n "$pxe" ] && echo -e "\tnext-Server $address;"
+		_string_assert_contains --$nic-pxe $@ && echo -e "\toption bootfile-name \"pxelinux.0\";"
+		_string_assert_contains --$nic-pxe $@ && echo -e "\tnext-Server $address;"
+		_string_assert_contains --$nic-pac $@ && echo -e "\toption proxy-config \"http://$address/cgi-bin/proxy.cgi?$address\";"
 		echo -e "\tpool {"
 		echo  -e "\t\trange $start $end;"
 		for host in $(echo "$hosts" | tr ',' ' ')
@@ -644,7 +645,7 @@ function _network_forward() {
 	do
 		case "$type" in
 			dynamic)
-				sshpass -p "$password" ssh $options -N -T -D 127.0.0.1:$local_port -C $username@$server_host -p $server_port
+				sshpass -p "$password" ssh $options -N -T -D 0.0.0.0:$local_port -C $username@$server_host -p $server_port
 			;;
 			left)
 				remote_port=$(_shell_get_parameter --remote-port "$@")
