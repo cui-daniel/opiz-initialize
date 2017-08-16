@@ -1,5 +1,5 @@
 #!/bin/bash
-function backup() {
+function _backup() {
 	if [ -e $1 ]
 	then
 		if [ -e $1.backup ]
@@ -14,7 +14,7 @@ function backup() {
 	fi
 }
 
-function release() {
+function _release() {
 	if [ -e rfs/$1 ]
 	then
 		mkdir -p $(dirname $1)
@@ -30,69 +30,79 @@ function release() {
 	fi
 }
 
-function confirm() {
+function _confirm() {
 	unset input
 	read -p "$1 [Y|n]: " -t 5 input
 	echo
 	[ -z "$input" -o "input" = "y" -o "$input" = "Y" ] && return 0
 	return 1
 }
+
+function _uninstall() {
+	dpkg --get-selections | grep -w $1 | grep -w install && apt-get autoremove -y $1
+	dpkg --get-selections | grep -w $1 | grep -w deinstall && apt-get purge -y $1
+}
+
+function _install() {
+	dpkg --get-selections | grep -w $1 || apt-get install -y $1
+}
+
 cd $(dirname $0)
 
 mkdir -p /storage
 #================================================================
-confirm "execute dpkg-reconfigure locales" && dpkg-reconfigure locales
+_confirm "execute dpkg-reconfigure locales" && dpkg-reconfigure locales
 #================================================================
-confirm "execute apt-get update" && apt-get update
+_confirm "execute apt-get update" && apt-get update
 apt-get upgrade -y
 #================================================================
-apt-get install -y apt-file
-confirm "execute apt-file update" && apt-file update
+_install apt-file
+_confirm "execute apt-file update" && apt-file update
 #================================================================
 cat /etc/passwd | grep -q daniel || adduser daniel
 cat /etc/group | grep -q 'sudo:.*daniel' || usermod -a -G sudo daniel
 #================================================================
-apt-get autoremove -y resolvconf
-apt-get purge -y resolvconf
+_install sshpass
 #================================================================
-apt-get install -y sshpass
+_install mpg321
 #================================================================
-apt-get install -y mpg321
+_install axel
 #================================================================
-apt-get install -y axel
+_install ipcalc
 #================================================================
-apt-get install -y ipcalc
+_install cryptsetup
 #================================================================
-apt-get install -y cryptsetup
+_install samba
 #================================================================
-apt-get install -y samba
+_install pdnsd
 #================================================================
-apt-get install -y pdnsd
+_install isc-dhcp-server
 #================================================================
-apt-get install -y isc-dhcp-server
+_install tftpd-hpa
 #================================================================
-apt-get install -y tftpd-hpa
+_install pxelinux
 #================================================================
-apt-get install -y pxelinux
-#================================================================
-apt-get install -y nginx
-backup /etc/nginx/sites-available/default
-release /etc/nginx/sites-available/default
+_install nginx
+_backup /etc/nginx/sites-available/default
+_release /etc/nginx/sites-available/default
 #================================================================
 apt-get install -y privoxy
-backup /etc/privoxy/config
-release /etc/privoxy/config
-release /etc/privoxy/ladder.action
+_backup /etc/privoxy/config
+_release /etc/privoxy/config
+_release /etc/privoxy/ladder.action
 #================================================================
-backup /etc/sysctl.conf
-release /etc/sysctl.conf
-backup /etc/rc.local
-release /etc/rc.local 755
-release /usr/local/bin/busybox 755
-release /usr/local/etc/rc.local 755
-release /usr/local/etc/httpd.conf 644
-release /usr/local/bin/device-manager 755
+_backup /etc/sysctl.conf
+_backup /etc/rc.local
+_release /etc/sysctl.conf
+_release /etc/rc.local 755
+_release /usr/local/bin/busybox 755
+_release /usr/local/etc/rc.local 755
+_release /usr/local/etc/httpd.conf 644
+_release /usr/local/bin/device-manager 755
 #================================================================
 cp -dr rfs/var/www/html/* /var/www/html/
 chmod 755 /var/www/html/cgi-bin/*.cgi
 #================================================================
+_uninstall resolvconf
+#================================================================
+reboot
