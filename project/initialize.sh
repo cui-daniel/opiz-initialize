@@ -39,8 +39,10 @@ function _confirm() {
 }
 
 function _uninstall() {
-	dpkg --get-selections | grep -w $1 | grep -w install && apt-get autoremove -y $1
-	dpkg --get-selections | grep -w $1 | grep -w deinstall && apt-get purge -y $1
+	result=1
+	dpkg --get-selections | grep -w $1 | grep -w install && apt-get autoremove -y $1 && result=0
+	dpkg --get-selections | grep -w $1 | grep -w deinstall && apt-get purge -y $1 && result=0
+	return $result
 }
 
 function _install() {
@@ -49,7 +51,10 @@ function _install() {
 
 cd $(dirname $0)
 
+#================================================================
 mkdir -p /storage
+#================================================================
+_uninstall resolvconf && reboot
 #================================================================
 _confirm "execute dpkg-reconfigure locales" && dpkg-reconfigure locales
 #================================================================
@@ -103,6 +108,3 @@ _release /usr/local/bin/device-manager 755
 cp -dr rfs/var/www/html/* /var/www/html/
 chmod 755 /var/www/html/cgi-bin/*.cgi
 #================================================================
-_uninstall resolvconf
-#================================================================
-reboot
