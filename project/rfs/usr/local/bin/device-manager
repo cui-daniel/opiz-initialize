@@ -331,18 +331,16 @@ function _service_samba() {
 }
 
 function _service_pdnsd() {
-	_file_backup /etc/pdnsd.conf
 	temp=$(mktemp)
 	_network_get_nameservers >$temp
 	_shell_get_parameters --server "$@" >>$temp
 	servers=$(cat $temp | grep -o '[0-9]*\.[0-9]*\.[0-9]*\.[0-9]*' | grep -v "^127" |  sort -u | xargs echo | tr ' ' ',')
 	[ -z "$servers" ] && servers="114.114.114.114"
-	cat >/etc/pdnsd.conf<<-EOF
+	cat >/usr/local/etc/pdnsd.conf<<-EOF
 	global {
 	debug = on;
 	perm_cache = 1024;
 	cache_dir = /var/pdnsd;
-	run_as = pdnsd;
 	server_port = 53;
 	server_ip = any;
 	status_ctl = on;
@@ -373,7 +371,7 @@ function _service_pdnsd() {
 	EOF
 	echo "nameserver 127.0.0.1" >/etc/resolv.conf
 	pkill pdnsd
-	/usr/local/sbin/pdnsd -c /etc/pdnsd.conf -d
+	/usr/local/sbin/pdnsd -c /usr/local/etc/pdnsd.conf -d
 }
 
 function _service_samba_list() {

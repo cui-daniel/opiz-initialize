@@ -104,14 +104,17 @@ _install cryptsetup
 #================================================================
 _install samba
 #================================================================
-git clone https://gitorious.org/pdnsd/pdnsd.git
-cd pdnsd/
-./configure
-make
-make install
-rm /usr/local/etc/pdnsd.conf.sample
-cd ..
-rm -rf pdnsd
+if [ ! -e /usr/local/sbin/pdnsd ]
+then
+	git clone https://gitorious.org/pdnsd/pdnsd.git
+	cd pdnsd/
+	./configure
+	make
+	make install
+	rm /usr/local/etc/pdnsd.conf.sample
+	cd ..
+	rm -rf pdnsd
+fi
 #================================================================
 _install isc-dhcp-server
 #================================================================
