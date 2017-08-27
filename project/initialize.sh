@@ -46,27 +46,51 @@ function _uninstall() {
 }
 
 function _install() {
-	apt-get install -y $@
+	[ -z "$APT_OPTIONS" ] && apt-get install -y $@
+	[ -z "$APT_OPTIONS" ] || apt-get -o "$APT_OPTIONS" install -y $@
+}
+
+function _update() {
+	[ -z "$APT_OPTIONS" ] && apt-get update
+	[ -z "$APT_OPTIONS" ] || apt-get -o "$APT_OPTIONS" update
+}
+
+function _upgrade() {
+	[ -z "$APT_OPTIONS" ] && apt-get upgrade -y
+	[ -z "$APT_OPTIONS" ] || apt-get -o "$APT_OPTIONS" upgrade -y
+}
+
+function _parameter() {
+	key=$1
+	shift
+	for item in $@
+	do
+		if [ "${item%%=*}" = $key ]
+		then
+			echo "${item#*=}"
+			break
+		fi
+	done
 }
 
 cd $(dirname $0)
-
+APT_OPTIONS=$(_parameter --apt-options $@)
 #================================================================
 mkdir -p /storage
 sed -i 's/orangepizero/daniel-mobile/g' /etc/hostname /etc/hosts
+#================================================================
+cat /etc/passwd | grep -q daniel || adduser daniel
+cat /etc/group | grep -q 'sudo:.*daniel' || usermod -a -G sudo daniel
 #================================================================
 _uninstall resolvconf && reboot
 #================================================================
 _confirm "execute dpkg-reconfigure locales" && dpkg-reconfigure locales
 #================================================================
-_confirm "execute apt-get update" && apt-get update
-apt-get upgrade -y
+_confirm "execute apt-get update" && _update
+_confirm "execute apt-get upgrade" && _upgrade
 #================================================================
 _install apt-file
 _confirm "execute apt-file update" && apt-file update
-#================================================================
-cat /etc/passwd | grep -q daniel || adduser daniel
-cat /etc/group | grep -q 'sudo:.*daniel' || usermod -a -G sudo daniel
 #================================================================
 _install sshpass
 #================================================================
