@@ -46,13 +46,14 @@ function _uninstall() {
 }
 
 function _install() {
-	dpkg --get-selections | grep -w $1 || apt-get install -y $1
+	apt-get install -y $@
 }
 
 cd $(dirname $0)
 
 #================================================================
 mkdir -p /storage
+sed -i 's/orangepizero/daniel-mobile/g' /etc/hostname /etc/hosts
 #================================================================
 _uninstall resolvconf && reboot
 #================================================================
