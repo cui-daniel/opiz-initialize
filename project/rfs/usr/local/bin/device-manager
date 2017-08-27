@@ -372,12 +372,8 @@ function _service_pdnsd() {
 	}
 	EOF
 	echo "nameserver 127.0.0.1" >/etc/resolv.conf
-	cat >/etc/default/pdnsd<<-EOF
-	START_DAEMON=yes
-	AUTO_MODE=
-	START_OPTIONS=
-	EOF
-	/etc/init.d/pdnsd restart
+	pkill pdnsd
+	/usr/local/sbin/pdnsd -c /etc/pdnsd.conf -d
 }
 
 function _service_samba_list() {
@@ -505,41 +501,6 @@ function _service_samba_user() {
 			_help | grep service | grep samba | grep user
 		;;
 	esac
-}
-
-function _service_pdnsd() {
-	cat >/etc/pdnsd.conf<<-EOF
-	global {
-		debug = on;
-		perm_cache = 1024;
-		cache_dir = /var/pdnsd;
-		run_as = pdnsd;
-		server_port = 53;
-		server_ip = any;
-		status_ctl = on;
-		min_ttl = 15m;
-		max_ttl = 1w;
-		timeout = 10;
-	}
-	server {
-		label = $(hostname);
-		ip = $(_shell_get_parameters --parent | tr -d ' ' | grep -v '^$' | xargs echo | tr ' ' ',');
-		root_server = on;
-		uptest = none;
-	}
-	source {
-		owner = localhost;
-		file = /etc/hosts;
-	}
-	rr {
-		name = localhost;
-		reverse = on;
-		a = 127.0.0.1;
-		owner = localhost;
-		soa = localhost,root.localhost,42,86400,900,86400,86400;
-	}
-	EOF
-	/etc/init.d/pdnsd restart
 }
 
 function _service_dhcpd() {
