@@ -2,7 +2,7 @@
 date
 export HOME=/root
 
-/usr/local/bin/device-manager busybox httpd --port=127.0.0.1:81 --home=/var/www/html/
+/usr/local/bin/device-manager busybox httpd --port=8080 --home=/var/www/html/
 
 /usr/local/bin/device-manager network wireless hotspot --interface=wlan0 --device=nl80211 --ssid=$(hostname) --password=password --address=192.168.128.1/24
 /usr/local/bin/device-manager service route --forward=eth0:192.168.128.0/24

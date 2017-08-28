@@ -122,7 +122,7 @@ _install tftpd-hpa
 #================================================================
 _install pxelinux
 #================================================================
-_install nginx
+_install nginx php5-fpm
 _backup /etc/nginx/sites-available/default
 _release /etc/nginx/sites-available/default
 #================================================================

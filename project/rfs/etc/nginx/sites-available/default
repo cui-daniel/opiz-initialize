@@ -8,6 +8,15 @@ server {
 	        try_files $uri $uri/ =404;
 	}
 	location /cgi-bin/ {
-	        proxy_pass http://127.0.0.1:81/cgi-bin/;
+	        proxy_pass http://127.0.0.1:8080/cgi-bin/;
+	}
+	location ~ \.php$ {
+		include snippets/fastcgi-php.conf;
+		fastcgi_pass unix:/var/run/php5-fpm.sock;
+	}
+	location ~ \.(python|bash|perl)$ {
+		proxy_pass http://127.0.0.1:8080;
+#		proxy_set_header Host1 $server_addr;
+		proxy_set_header User-Agent "$http_user_agent; local=$server_addr; remote=$remote_addr:$remote_port";
 	}
 }
