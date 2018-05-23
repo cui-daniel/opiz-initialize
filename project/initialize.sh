@@ -82,7 +82,11 @@ sed -i 's/orangepizero/daniel-mobile/g' /etc/hostname /etc/hosts
 cat /etc/passwd | grep -q daniel || adduser daniel
 cat /etc/group | grep -q 'sudo:.*daniel' || usermod -a -G sudo daniel
 #================================================================
-_uninstall resolvconf && reboot
+REBOOT=0
+_uninstall resolvconf && REBOOT=1
+_uninstall network-manager && REBOOT=1
+_uninstall avahi-autoipd && REBOOT=1
+[ "$REBOOT" = "1" ] && reboot
 #================================================================
 _confirm "execute dpkg-reconfigure locales" && dpkg-reconfigure locales
 #================================================================
