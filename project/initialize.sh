@@ -73,6 +73,11 @@ function _parameter() {
 	done
 }
 
+while ps aux | grep -w apt | grep -v grep
+do
+	sleep 5
+done
+
 cd $(dirname $0)
 APT_OPTIONS=$(_parameter --apt-options $@)
 #================================================================
