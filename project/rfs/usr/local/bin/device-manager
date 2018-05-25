@@ -79,12 +79,12 @@ function _network_reset_interface() {
 }
 
 function _network_set_address() {
-	ip address flush dev wlan0
+	ip address flush dev $1
 	if [ "$2" = "dhcp" ]
 	then
 		/sbin/dhclient -1 -v -pf /run/dhclient.$1.pid -lf /var/lib/dhcp/dhclient.$1.leases $1
 	else
-		ip address add $2 dev wlan0
+		ip address add $2 dev $1
 	fi
 	if [ -n "$3" ]
 	then
