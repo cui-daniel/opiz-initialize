@@ -34,7 +34,7 @@ function _confirm() {
 	unset input
 	read -p "$1 [Y|n]: " -t 5 input
 	echo
-	[ -z "$input" -o "input" = "y" -o "$input" = "Y" ] && return 0
+	[ -z "$input" -o "$input" = "y" -o "$input" = "Y" ] && return 0
 	return 1
 }
 
@@ -129,6 +129,7 @@ _install isc-dhcp-server
 #================================================================
 _install tftpd-hpa
 #================================================================
+_install syslinux-common
 _install pxelinux
 #================================================================
 _install nginx php5-fpm
@@ -144,6 +145,7 @@ _backup /etc/sysctl.conf
 _backup /etc/rc.local
 _release /etc/sysctl.conf
 _release /etc/rc.local 755
+_release /etc/network/interfaces
 _release /usr/local/bin/busybox 755
 _release /usr/local/etc/rc.local 755
 _release /usr/local/etc/httpd.conf 644
