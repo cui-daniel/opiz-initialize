@@ -141,7 +141,7 @@ function _help() {
 	echo "device-manager service pxe list --details"
 	echo "device-manager service pxe create --name=<name> --label=<comment> --kernel=<kernel> --initrd=<initrd> --append=<append>"
 	echo "device-manager service pxe delete --name=<name>"
-	echo "device-manager service pxe reload"
+	echo "device-manager service pxe reload --type=<l|g> --host=<address[:port][path]>"
 	echo "device-manager busybox httpd --port=<address:port> --home=<home>"
 }
 
@@ -240,7 +240,7 @@ function _service_pxe() {
 			_service_pxe_delete "$@"
 		;;
 		reload)
-			_service_pxe_reload
+			_service_pxe_reload "$@"
 		;;
 		*)
 			_help | grep service | grep pxe
@@ -276,8 +276,8 @@ function _service_pxe_create() {
 	cat >$TFTP_DIRECTORY/boot/$name.pxe<<-EOF
 	LABEL $name
 	MENU LABEL $label
-	kernel boot/$name.kernel
-	initrd boot/$name.initrd
+	kernel %BASE%/boot/$name.kernel
+	initrd %BASE%/boot/$name.initrd
 	append $append
 	EOF
 }
@@ -289,7 +289,6 @@ function _service_pxe_delete() {
 }
 
 function _service_pxe_reload() {
-	[ -e $TFTP_DIRECTORY/pxelinux.0 ] || cp /usr/lib/PXELINUX/pxelinux.0 $TFTP_DIRECTORY/
 	[ -e $TFTP_DIRECTORY/libutil.c32 ] || cp /usr/lib/syslinux/modules/bios/libutil.c32 $TFTP_DIRECTORY/
 	[ -e $TFTP_DIRECTORY/ldlinux.c32 ] || cp /usr/lib/syslinux/modules/bios/ldlinux.c32 $TFTP_DIRECTORY/
 	[ -e $TFTP_DIRECTORY/libcom32.c32 ] || cp /usr/lib/syslinux/modules/bios/libcom32.c32 $TFTP_DIRECTORY/
@@ -302,7 +301,24 @@ function _service_pxe_reload() {
 	MENU TITLE Daniel PXE loader
 	MENU COLOR BORDER 0 #0000 #0000 none
 	EOF
-	cat $TFTP_DIRECTORY/boot/*.pxe 2>/dev/null >>$TFTP_DIRECTORY/pxelinux.cfg/default
+	type=$(_shell_get_parameter --type "$@")
+	host=$(_shell_get_parameter --host "$@")
+	if [ -z "$type" ]
+	then
+		cp /usr/lib/PXELINUX/pxelinux.0 $TFTP_DIRECTORY/pxelinux.0
+		cat $TFTP_DIRECTORY/boot/*.pxe 2>/dev/null | sed "s/%BASE%\///g" >>$TFTP_DIRECTORY/pxelinux.cfg/default
+	elif [ "$type" = "g" -o "$type" = "G" ]
+	then
+		cp /usr/lib/PXELINUX/gpxelinux.0 $TFTP_DIRECTORY/pxelinux.0
+		cat $TFTP_DIRECTORY/boot/*.pxe 2>/dev/null | sed "s/%BASE%\///g" >>$TFTP_DIRECTORY/pxelinux.cfg/default
+	elif [ "$type" = "l" -o "$type" = "L" ]
+	then
+		_string_assert_empty "$host" || _system_exit "host is empty"
+		cp /usr/lib/PXELINUX/lpxelinux.0 $TFTP_DIRECTORY/pxelinux.0
+		cat $TFTP_DIRECTORY/boot/*.pxe 2>/dev/null | sed "s/%BASE%/http:\/\/$host/g" >>$TFTP_DIRECTORY/pxelinux.cfg/default
+	else
+		_system_exit "not such type:$type"
+	fi
 }
 
 function _service_samba() {

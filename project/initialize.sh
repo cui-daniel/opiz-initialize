@@ -152,5 +152,6 @@ _release /usr/local/etc/httpd.conf 644
 _release /usr/local/bin/device-manager 755
 #================================================================
 cp -dr rfs/var/www/html/* /var/www/html/
+ln -s /srv/tftp/boot /var/www/html/boot
 chmod 755 /var/www/html/cgi-bin/*.cgi
 #================================================================
