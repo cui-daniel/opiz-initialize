@@ -113,6 +113,8 @@ _install cryptsetup
 #================================================================
 _install samba
 #================================================================
+_install android-tools-adb
+#================================================================
 if [ ! -e /usr/local/sbin/pdnsd ]
 then
 	git clone https://gitorious.org/pdnsd/pdnsd.git

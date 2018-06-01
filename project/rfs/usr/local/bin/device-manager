@@ -142,6 +142,7 @@ function _help() {
 	echo "device-manager service pxe create --name=<name> --label=<comment> --kernel=<kernel> --initrd=<initrd> --append=<append>"
 	echo "device-manager service pxe delete --name=<name>"
 	echo "device-manager service pxe reload --type=<l|g> --host=<address[:port][path]>"
+	echo "device-manager service console"
 	echo "device-manager busybox httpd --port=<address:port> --home=<home>"
 }
 
@@ -206,10 +207,34 @@ function _service() {
 		pxe)
 			_service_pxe "$@"
 		;;
+		console)
+			_service_console "$@"
+		;;
 		*)
 			_help | grep service
 		;;
 	esac
+}
+
+function _service_console() {
+	port=$(_shell_get_parameters --port $@)
+	[ -z "port" ] && port=$(expr $RANDOM$RANDOM % 32768 + 16384)
+	executor=$(mktemp)
+	cat >$executor<<-EOF
+	#!/bin/bash
+	echo 'shell start'
+	/bin/bash 2>&1
+	echo 'shell quit'
+	EOF
+	chmod a+x $executor
+	while true
+	do
+		sleep 1
+		adb wait-for-device
+		adb start -n cn.org.snail.java.android.utility.socket.helper/.MainActivity --es family tcp --ez server true --es address 0.0.0.0 --ei port $port
+		adb forward tcp:$port tcp:$port
+		nc 127.0.0.1 $port -e $executor
+	done
 }
 
 function _service_route() {
