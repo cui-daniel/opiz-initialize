@@ -144,12 +144,16 @@ function _help() {
 	echo "device-manager service pxe reload --type=<l|g> --host=<address[:port][path]>"
 	echo "device-manager service console"
 	echo "device-manager busybox httpd --port=<address:port> --home=<home>"
+	echo "device-manager initialize <hotspot|station>"
 }
 
 function _main() {
 	command="$1"
 	shift
 	case "$command" in
+		initialize)
+			_initialize "$@"
+		;;
 		network)
 			_network "$@"
 		;;
@@ -163,6 +167,11 @@ function _main() {
 			_help
 		;;
 	esac
+}
+
+function _initialize() {
+	rm /usr/local/etc/rc.local
+	ln -s usr/local/etc/rc.local.$1 /local/etc/rc.local
 }
 
 function _busybox() {
@@ -783,33 +792,43 @@ function _network_wireless_station() {
 	address=$(_shell_get_parameter --address $@)
 	gateway=$(_shell_get_parameter --gateway $@)
 
-	cfg=/tmp/wpa_supplicant-$interface.conf
-	pid=/tmp/wpa_supplicant-$interface.pid
-	touch $cfg
-
-	_string_assert_empty "$interface" || _system_exit "interface is empty"
-	_network_assert_interface $interface  || _system_exit "interface error: $interface"
 	_string_assert_empty "$device" || _system_exit "device is empty"
 	_string_assert_contains $device nl80211 wext wired none || _system_exit "device error: $device"
-	_string_assert_empty "$address" || _system_exit "address is empty"
+	_string_assert_empty "$interface" || _system_exit "interface is empty"
+	_network_assert_interface $interface  || _system_exit "interface error: $interface"
+	_string_assert_empty "$address" || address=dhcp
 	[ "$address" = "dhcp" ] || _network_assert_address $address || _system_exit "address error: $address"
 	[ -z "$gateway" ] || _network_assert_address $gateway || _system_exit "gateway error: $gateway"
 
 	_network_reset_interface $interface
 
-	wpa_supplicant -B -D$device -i$interface -c$cfg -C$pid
-	wpa_cli -i$interface -p$pid list_network | grep -o '[0-9]*' | xargs -i wpa_cli -i$interface -p$pid remove_network {}
-	wpa_cli -i$interface -p$pid add_network
-	wpa_cli -i$interface -p$pid set_network 0 ssid "\"$ssid\""
-	if [ -z "$password" ]
+	if [ -z "$ssid" ]
 	then
-		wpa_cli -i$interface -p$pid set_network 0 key_mgmt NONE
+		cfg=/etc/wpa_supplicant/$interface.conf
 	else
-		wpa_cli -i$interface -p$pid set_network 0 psk "\"$password\""
+		cfg=/tmp/wpa_supplicant-$interface.conf
 	fi
-	wpa_cli -i$interface -p$pid select_network 0
-	wpa_cli -i$interface -p$pid enable_network 0
+	touch $cfg
+	pid=/tmp/wpa_supplicant-$interface.pid
+	wpa_supplicant -B -D$device -i$interface -c$cfg -C$pid
 
+	if [ ! -z "$ssid" ]
+	then
+		wpa_cli -i$interface -p$pid list_network | grep -o '[0-9]*' | xargs -i wpa_cli -i$interface -p$pid remove_network {}
+		wpa_cli -i$interface -p$pid add_network
+		wpa_cli -i$interface -p$pid set_network 0 ssid "\"$ssid\""
+		[ -z "$password" ] && wpa_cli -i$interface -p$pid set_network 0 key_mgmt NONE
+		[ -z "$password" ] || wpa_cli -i$interface -p$pid set_network 0 psk "\"$password\""
+		wpa_cli -i$interface -p$pid select_network 0
+		wpa_cli -i$interface -p$pid enable_network 0
+	fi
+	completed=false
+	for i in $(seq 1 60)
+	do
+		echo status | wpa_cli -i$interface -p$pid | grep wpa_state=COMPLETED && completed=true
+		[ $completed = true ] && break
+		[ $completed = false ] && sleep 1
+	done
 	_network_set_address $interface $address $gateway
 }
 

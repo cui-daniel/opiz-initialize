@@ -1,0 +1,9 @@
+#!/bin/bash
+source /usr/local/etc/rc.local.common
+/usr/local/bin/device-manager network wireless station --interface=wlan0 --device=nl80211 --address=dhcp
+/usr/local/bin/device-manager network wired --interface=eth0 --address=192.168.128.1/255.255.255.0
+/usr/local/bin/device-manager service dhcpd --interfaces=eth0 --eth0-pxe --eth0-pac
+/usr/local/bin/device-manager service route --forward=eth0:192.168.128.0/24
+/usr/local/bin/device-manager service pxe reload
+/usr/sbin/service tftpd-hpa restart
+

@@ -1,0 +1,7 @@
+#!/bin/bash
+date
+export HOME=/root
+/usr/local/bin/device-manager network resolv --name-server=127.0.0.1
+/usr/local/bin/device-manager busybox httpd --port=8080 --home=/var/www/html/
+/usr/local/bin/device-manager network forward --type=dynamic --server-host=vps.snail.org.cn --server-port=10022 --username=daniel --password=password@0 --local-port=31280 --deamon &
+/usr/local/bin/device-manager network forward --type=right --server-host=vps.snail.org.cn --server-port=10022 --username=daniel --password=password@0 --local-port=80 --remote-port=8080 --deamon &

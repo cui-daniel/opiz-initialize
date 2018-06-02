@@ -149,9 +149,12 @@ _release /etc/sysctl.conf
 _release /etc/rc.local 755
 _release /etc/network/interfaces
 _release /usr/local/bin/busybox 755
-_release /usr/local/etc/rc.local 755
+_release /usr/local/etc/rc.local.common 755
+_release /usr/local/etc/rc.local.hotspot 755
+_release /usr/local/etc/rc.local.station 755
 _release /usr/local/etc/httpd.conf 644
 _release /usr/local/bin/device-manager 755
+/usr/local/bin/device-manager initialize hotspot
 #================================================================
 cp -dr rfs/var/www/html/* /var/www/html/
 ln -s /srv/tftp/boot /var/www/html/boot
