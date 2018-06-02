@@ -171,7 +171,7 @@ function _main() {
 
 function _initialize() {
 	rm -rf /usr/local/etc/rc.local
-	ln -s /usr/local/etc/rc.local.$1 /local/etc/rc.local
+	ln -s /usr/local/etc/rc.local.$1 /usr/local/etc/rc.local
 }
 
 function _busybox() {
