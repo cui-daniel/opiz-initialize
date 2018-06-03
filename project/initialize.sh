@@ -91,6 +91,7 @@ REBOOT=0
 _uninstall resolvconf && REBOOT=1
 _uninstall network-manager && REBOOT=1
 _uninstall avahi-autoipd && REBOOT=1
+_uninstall armbian-config && REBOOT=1
 cp -a /boot/bin /boot/bin.keep
 apt-get autoremove -y linux-jessie-root-orangepizero
 rm -rf /boot/bin
