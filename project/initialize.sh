@@ -91,6 +91,13 @@ REBOOT=0
 _uninstall resolvconf && REBOOT=1
 _uninstall network-manager && REBOOT=1
 _uninstall avahi-autoipd && REBOOT=1
+cp -a /boot/bin /boot/bin.keep
+apt-get autoremove -y linux-jessie-root-orangepizero
+rm -rf /boot/bin
+mv /boot/bin.keep /boot/bin
+update-initramfs -u
+apt-get autoremove -y
+dpkg --get-selections | grep deinstall | awk '{print $1}' | xargs apt-get purge -y
 [ "$REBOOT" = "1" ] && reboot
 #================================================================
 _confirm "execute dpkg-reconfigure locales" && dpkg-reconfigure locales
