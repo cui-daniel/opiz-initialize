@@ -40,12 +40,14 @@ function _confirm() {
 
 function _uninstall() {
 	result=1
+	echo "uninstall $1"
 	dpkg --get-selections | grep -w $1 | grep -w install && apt-get autoremove -y $1 && result=0
 	dpkg --get-selections | grep -w $1 | grep -w deinstall && apt-get purge -y $1 && result=0
 	return $result
 }
 
 function _install() {
+	echo "install $@"
 	[ -z "$APT_OPTIONS" ] && apt-get install -y $@
 	[ -z "$APT_OPTIONS" ] || apt-get -o "$APT_OPTIONS" install -y $@
 }
@@ -92,13 +94,18 @@ _uninstall resolvconf && REBOOT=1
 _uninstall network-manager && REBOOT=1
 _uninstall avahi-autoipd && REBOOT=1
 _uninstall armbian-config && REBOOT=1
-cp -a /boot/bin /boot/bin.keep
-apt-get autoremove -y linux-jessie-root-orangepizero
-rm -rf /boot/bin
-mv /boot/bin.keep /boot/bin
-update-initramfs -u
+if dpkg --get-selections | grep -w linux-jessie-root-orangepizero
+then
+	cp -a /boot/bin /boot/bin.keep
+	apt-get autoremove -y linux-jessie-root-orangepizero
+	rm -rf /boot/bin
+	mv /boot/bin.keep /boot/bin
+	update-initramfs -u
+	REBOOT=1
+fi
 apt-get autoremove -y
 dpkg --get-selections | grep deinstall | awk '{print $1}' | xargs apt-get purge -y
+[ "$REBOOT" = "1" ] && read -p "reboot system" -t 5
 [ "$REBOOT" = "1" ] && reboot
 #================================================================
 _confirm "execute dpkg-reconfigure locales" && dpkg-reconfigure locales
