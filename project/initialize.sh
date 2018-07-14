@@ -84,7 +84,7 @@ cd $(dirname $0)
 APT_OPTIONS=$(_parameter --apt-options $@)
 #================================================================
 mkdir -p /storage
-sed -i 's/orangepizero/daniel-mobile/g' /etc/hostname /etc/hosts
+sed -i "s/$(hostname)/daniel-mobile/g" /etc/hostname /etc/hosts
 #================================================================
 cat /etc/passwd | grep -q daniel || adduser daniel
 cat /etc/group | grep -q 'sudo:.*daniel' || usermod -a -G sudo daniel
@@ -173,6 +173,7 @@ _release /usr/local/bin/device-manager 755
 /usr/local/bin/device-manager initialize hotspot
 #================================================================
 cp -dr rfs/var/www/html/* /var/www/html/
+rm -rf /var/www/html/boot
 ln -s /srv/tftp/boot /var/www/html/boot
 chmod 755 /var/www/html/cgi-bin/*.cgi
 #================================================================
